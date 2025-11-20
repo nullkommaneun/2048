@@ -3,349 +3,499 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2048 Solver & Debugger</title>
+    <title>2048 AI Learner</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: #faf8ef;
             color: #776e65;
-            padding: 20px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
+            touch-action: manipulation; 
         }
 
-        h1 { margin-bottom: 10px; }
+        h1 { margin: 10px 0; font-size: 24px; }
 
-        /* Das Grid Styling */
+        .stats-panel {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 10px;
+            background: #bbada0;
+            padding: 10px;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+        }
+        .stat-box { text-align: center; }
+        .stat-label { font-size: 10px; text-transform: uppercase; color: #eee4da; }
+        .stat-value { font-size: 18px; }
+
         .grid-container {
             background-color: #bbada0;
-            padding: 15px;
+            padding: 10px;
             border-radius: 6px;
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 10px;
             width: 100%;
-            max-width: 400px;
+            max-width: 350px;
+            aspect-ratio: 1;
         }
 
-        .cell input {
-            width: 100%;
-            height: 60px;
-            border: none;
-            border-radius: 3px;
-            text-align: center;
-            font-size: 18px;
-            font-weight: bold;
+        .cell {
             background-color: rgba(238, 228, 218, 0.35);
-            color: #776e65;
-        }
-
-        /* Farben basierend auf Werten (optional simple visualisierung) */
-        .cell input:not([value=""]), .cell input:not([value="0"]) {
-            background-color: #eee4da;
-        }
-
-        .controls {
-            margin-top: 20px;
+            border-radius: 3px;
             display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #776e65;
+            position: relative;
+        }
+
+        /* Tile Colors based on value */
+        .cell[data-val="2"] { background: #eee4da; }
+        .cell[data-val="4"] { background: #ede0c8; }
+        .cell[data-val="8"] { background: #f2b179; color: #f9f6f2; }
+        .cell[data-val="16"] { background: #f59563; color: #f9f6f2; }
+        .cell[data-val="32"] { background: #f67c5f; color: #f9f6f2; }
+        .cell[data-val="64"] { background: #f65e3b; color: #f9f6f2; }
+        .cell[data-val="128"] { background: #edcf72; color: #f9f6f2; font-size: 20px; }
+        .cell[data-val="256"] { background: #edcc61; color: #f9f6f2; font-size: 20px; }
+        .cell[data-val="512"] { background: #edc850; color: #f9f6f2; font-size: 20px; }
+        .cell[data-val="1024"] { background: #edc53f; color: #f9f6f2; font-size: 16px; }
+        .cell[data-val="2048"] { background: #edc22e; color: #f9f6f2; font-size: 16px; }
+        
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
             gap: 10px;
+            justify-content: center;
         }
 
         button {
             background-color: #8f7a66;
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 3px;
-            font-size: 16px;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 14px;
             cursor: pointer;
-        }
-
-        button.reset { background-color: #999; }
-
-        #result {
-            margin-top: 20px;
-            font-size: 24px;
             font-weight: bold;
-            color: #e95624;
-            min-height: 30px;
         }
+        button:active { transform: scale(0.96); }
+        button.stop { background-color: #e95624; }
+        button.train { background-color: #edc22e; color: #776e65; }
 
-        /* On-Screen Debugger Styling */
-        #debug-console {
-            margin-top: 30px;
+        #brain-monitor {
+            margin-top: 20px;
             width: 100%;
-            max-width: 400px;
-            height: 200px;
+            max-width: 350px;
+            font-size: 12px;
+            background: #eee4da;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .weight-row { display: flex; justify-content: space-between; border-bottom: 1px solid #ccc; padding: 2px 0; }
+
+        #debug-console {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 350px;
+            height: 150px;
             background-color: #333;
             color: #0f0;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
-            padding: 10px;
-            overflow-y: scroll;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 8px;
+            overflow-y: auto;
             border-radius: 5px;
-            border: 2px solid #555;
         }
     </style>
 </head>
 <body>
 
-    <h1>2048 Nächster Schritt</h1>
-    <p>Gib die aktuellen Zahlen ein:</p>
-
-    <div class="grid-container" id="grid">
+    <h1>2048 AI Lab</h1>
+    
+    <div class="stats-panel">
+        <div class="stat-box">
+            <div class="stat-label">Score</div>
+            <div class="stat-value" id="score-display">0</div>
         </div>
-
-    <div class="controls">
-        <button onclick="calculateBestMove()">Bester Zug?</button>
-        <button class="reset" onclick="resetGrid()">Reset</button>
+        <div class="stat-box">
+            <div class="stat-label">Max Tile</div>
+            <div class="stat-value" id="max-tile-display">0</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Generation</div>
+            <div class="stat-value" id="gen-display">0</div>
+        </div>
     </div>
 
-    <div id="result"></div>
+    <div class="grid-container" id="grid"></div>
 
-    <h3>System Log</h3>
-    <div id="debug-console">Ready...<br></div>
+    <div class="controls">
+        <button onclick="resetGame()">Neues Spiel</button>
+        <button onclick="toggleAutoPlay()" id="btn-play">▶ Auto Play</button>
+        <button class="train" onclick="toggleTraining()" id="btn-train">⚡ Trainieren</button>
+    </div>
+
+    <div id="brain-monitor">
+        <strong>Aktuelles KI Gehirn (Gewichte):</strong>
+        <div class="weight-row"><span>Leere Felder:</span> <span id="w-empty">0</span></div>
+        <div class="weight-row"><span>Monotonie:</span> <span id="w-mono">0</span></div>
+        <div class="weight-row"><span>Smoothness:</span> <span id="w-smooth">0</span></div>
+        <div class="weight-row"><span>Max Tile:</span> <span id="w-max">0</span></div>
+        <div style="margin-top:5px; font-size:10px; color:#776e65;">
+            Status: <span id="ai-status">Warte auf Start...</span>
+        </div>
+    </div>
+
+    <div id="debug-console">System ready.<br></div>
 
     <script>
-        // --- 1. Debugger Setup ---
+        // --- 1. Debugger ---
         function log(msg) {
             const consoleEl = document.getElementById('debug-console');
+            // Begrenzen auf die letzten 50 Zeilen für Performance
+            if (consoleEl.childElementCount > 50) consoleEl.removeChild(consoleEl.firstChild);
+            
             const time = new Date().toLocaleTimeString().split(' ')[0];
-            consoleEl.innerHTML += `[${time}] ${msg}<br>`;
+            const span = document.createElement('div');
+            span.innerHTML = `[${time}] ${msg}`;
+            consoleEl.appendChild(span);
             consoleEl.scrollTop = consoleEl.scrollHeight;
-            console.log(msg); // Auch in die echte Konsole, falls verfügbar
         }
 
-        window.onerror = function(msg, url, line) {
-            log(`<span style="color:red">ERROR: ${msg} (Line ${line})</span>`);
-            return false;
-        };
-
-        // --- 2. UI Setup ---
-        const gridEl = document.getElementById('grid');
-        const inputs = [];
+        // --- 2. Game Engine ---
+        let grid = [];
+        let score = 0;
+        let gameActive = true;
 
         function initGrid() {
-            gridEl.innerHTML = '';
-            inputs.length = 0;
-            for (let i = 0; i < 16; i++) {
-                const div = document.createElement('div');
-                div.className = 'cell';
-                const input = document.createElement('input');
-                input.type = 'number';
-                input.id = 'cell-' + i;
-                div.appendChild(input);
-                gridEl.appendChild(div);
-                inputs.push(input);
+            grid = Array(4).fill().map(() => Array(4).fill(0));
+            score = 0;
+            gameActive = true;
+            addRandomTile();
+            addRandomTile();
+            updateUI();
+        }
+
+        function addRandomTile() {
+            let empty = [];
+            for(let r=0; r<4; r++) 
+                for(let c=0; c<4; c++) 
+                    if(grid[r][c] === 0) empty.push({r,c});
+            
+            if(empty.length > 0) {
+                let {r, c} = empty[Math.floor(Math.random() * empty.length)];
+                grid[r][c] = Math.random() < 0.9 ? 2 : 4;
             }
-            log("Grid initialisiert.");
         }
 
-        function getGridState() {
-            // Konvertiert Inputs in ein 4x4 Array [Reihe][Spalte]
-            let grid = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
-            for (let i = 0; i < 16; i++) {
-                let val = parseInt(inputs[i].value);
-                if (isNaN(val)) val = 0;
-                const r = Math.floor(i / 4);
-                const c = i % 4;
-                grid[r][c] = val;
-            }
-            return grid;
-        }
+        // Klonen und Rotieren für Logik-Vereinfachung
+        const clone = (g) => g.map(row => [...row]);
+        const rotateLeft = (g) => {
+            let n = g.length;
+            let res = Array(n).fill().map(() => Array(n).fill(0));
+            for(let r=0; r<n; r++) for(let c=0; c<n; c++) res[n-1-c][r] = g[r][c];
+            return res;
+        };
 
-        function resetGrid() {
-            inputs.forEach(inp => inp.value = '');
-            document.getElementById('result').innerText = '';
-            log("Grid zurückgesetzt.");
-        }
-
-        initGrid();
-
-        // --- 3. 2048 Logik & Algorithmus ---
-        
-        // Richtungen
-        const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3;
-        const DIR_NAMES = ['OBEN', 'RECHTS', 'UNTEN', 'LINKS'];
-
-        // Hilfsfunktion: Kopiert das Grid
-        function cloneGrid(grid) {
-            return grid.map(row => [...row]);
-        }
-
-        // Kernlogik: Bewegt eine Reihe nach links und merged
-        function moveRowLeft(row) {
-            // 1. Nullen entfernen
-            let newRow = row.filter(val => val !== 0);
-            let score = 0;
-
-            // 2. Mergen
-            for (let i = 0; i < newRow.length - 1; i++) {
-                if (newRow[i] === newRow[i+1]) {
-                    newRow[i] *= 2;
-                    score += newRow[i]; // Punkte fürs Mergen
-                    newRow.splice(i+1, 1); // Entferne das gemergte Element
-                }
-            }
-
-            // 3. Mit Nullen auffüllen
-            while (newRow.length < 4) {
-                newRow.push(0);
-            }
-            return { row: newRow, score: score, changed: false }; // Changed prüfen wir global
-        }
-
-        // Grid in eine Richtung bewegen
-        function moveGrid(grid, direction) {
-            let newGrid = cloneGrid(grid);
-            let score = 0;
+        function moveLeft(g) {
             let moved = false;
-
-            // Wir rotieren das Grid so, dass wir immer "nach Links" schieben können,
-            // und rotieren dann zurück. Das spart Code.
-            
-            // Rotationen um 'Left' Logik zu nutzen:
-            // UP: 3 Rotationen, RIGHT: 2, DOWN: 1, LEFT: 0
-            let rotations = (4 - direction + 3) % 4; 
-            
-            // Rotieren
-            for(let r=0; r<rotations; r++) newGrid = rotateLeft(newGrid);
-
-            // Verschieben
-            for (let i = 0; i < 4; i++) {
-                let result = moveRowLeft(newGrid[i]);
-                if (result.row.toString() !== newGrid[i].toString()) moved = true;
-                newGrid[i] = result.row;
-                score += result.score;
-            }
-
-            // Zurück rotieren
-            let backRotations = (4 - rotations) % 4;
-            for(let r=0; r<backRotations; r++) newGrid = rotateLeft(newGrid);
-
-            return { grid: newGrid, score: score, moved: moved };
+            let pts = 0;
+            let newGrid = g.map(row => {
+                let arr = row.filter(v => v); // Nullen raus
+                for(let i=0; i<arr.length-1; i++) {
+                    if(arr[i] === arr[i+1]) {
+                        arr[i] *= 2;
+                        pts += arr[i];
+                        arr.splice(i+1, 1);
+                        moved = true; // Merge ist Bewegung
+                    }
+                }
+                while(arr.length < 4) arr.push(0);
+                if(arr.toString() !== row.toString()) moved = true;
+                return arr;
+            });
+            return { grid: newGrid, score: pts, moved };
         }
 
-        function rotateLeft(grid) {
-            const rows = grid.length;
-            const cols = grid[0].length;
-            let res = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    res[cols - 1 - c][r] = grid[r][c];
-                }
-            }
+        // Globale Move Funktion
+        // 0:UP, 1:RIGHT, 2:DOWN, 3:LEFT
+        function makeMove(simGrid, dir) {
+            let temp = clone(simGrid);
+            // Rotieren um alles als "Left" zu behandeln
+            // UP(0)->3 Rots, RIGHT(1)->2 Rots, DOWN(2)->1 Rot, LEFT(3)->0 Rots
+            let rots = (4 - dir + 3) % 4; 
+            for(let i=0; i<rots; i++) temp = rotateLeft(temp);
+            
+            let res = moveLeft(temp);
+            
+            // Zurück rotieren
+            let back = (4 - rots) % 4;
+            for(let i=0; i<back; i++) res.grid = rotateLeft(res.grid);
+
             return res;
         }
 
-        // --- 4. AI Heuristik (Bewertung des Zustands) ---
-        function evaluateGrid(grid) {
-            // 1. Leere Felder (sehr wichtig)
-            let emptyCells = 0;
-            let maxTile = 0;
-            
-            // 2. Monotonie & Smoothness (Zahlen sollten sortiert und nahe beieinander liegen)
-            let monotonicity = 0;
-            let smoothness = 0;
-
-            for (let r = 0; r < 4; r++) {
-                for (let c = 0; c < 4; c++) {
-                    if (grid[r][c] === 0) {
-                        emptyCells++;
-                    } else {
-                        if (grid[r][c] > maxTile) maxTile = grid[r][c];
-                        
-                        // Smoothness (Differenz zu Nachbarn)
-                        if (c < 3 && grid[r][c+1] > 0) smoothness -= Math.abs(grid[r][c] - grid[r][c+1]);
-                        if (r < 3 && grid[r+1][c] > 0) smoothness -= Math.abs(grid[r][c] - grid[r+1][c]);
-                    }
+        function applyMove(dir) {
+            if(!gameActive) return false;
+            let res = makeMove(grid, dir);
+            if(res.moved) {
+                grid = res.grid;
+                score += res.score;
+                addRandomTile();
+                updateUI();
+                
+                // Check Game Over (Simpel)
+                let possible = false;
+                for(let d=0; d<4; d++) if(makeMove(grid, d).moved) possible = true;
+                if(!possible) {
+                    gameActive = false;
+                    // log("Game Over. Score: " + score);
                 }
+                return true;
             }
-
-            // Gewichtungen (Experimentell)
-            // Leere Felder sind kritisch fürs Überleben
-            // Smoothness hilft beim Mergen
-            return (emptyCells * 100) + smoothness + (maxTile * 2);
+            return false;
         }
 
-        // Expectimax Algorithmus (Vereinfacht: Depth 2-3)
-        // Da wir im Browser JS laufen, halten wir die Tiefe gering
-        function expectimax(grid, depth, isPlayerTurn) {
-            if (depth === 0) return { score: evaluateGrid(grid) };
+        // --- 3. AI Logic (Learning) ---
+        
+        // Das "Gehirn"
+        let weights = {
+            empty: 50,
+            mono: 10,
+            smooth: 5,
+            max: 5
+        };
+        
+        // Bestes Gehirn bisher
+        let bestWeights = {...weights};
+        let bestScoreAvg = 0;
+        let generation = 1;
 
-            if (isPlayerTurn) {
-                let bestScore = -Infinity;
-                let bestMove = -1;
-
-                for (let dir = 0; dir < 4; dir++) {
-                    let res = moveGrid(grid, dir);
-                    if (!res.moved) continue;
-
-                    // Rekursion: Jetzt ist der Computer dran (Zufalls-Tile)
-                    let val = expectimax(res.grid, depth - 1, false).score;
+        // AI Heuristik berechnen
+        function evaluate(g) {
+            let empty = 0, max = 0, mono = 0, smooth = 0;
+            
+            for(let r=0; r<4; r++) {
+                for(let c=0; c<4; c++) {
+                    if(g[r][c] === 0) empty++;
+                    if(g[r][c] > max) max = g[r][c];
                     
-                    if (val > bestScore) {
-                        bestScore = val;
-                        bestMove = dir;
-                    }
+                    // Smoothness (weniger Differenz ist gut, also negativ)
+                    if(c<3 && g[r][c+1]) smooth -= Math.abs(g[r][c] - g[r][c+1]);
+                    if(r<3 && g[r+1][c]) smooth -= Math.abs(g[r][c] - g[r+1][c]);
+
+                    // Monotonie (Zahlen sollen in eine Richtung steigen)
+                    // Vereinfacht: Wir belohnen Ecken
                 }
-                return { score: bestScore, move: bestMove };
+            }
+            // Kleiner Trick: Monotonie ist schwer global zu messen, 
+            // oft reicht es, die größte Zahl in einer Ecke zu halten.
+            if (g[3][3] === max) mono += max; 
+
+            return (empty * weights.empty) + 
+                   (mono * weights.mono) + 
+                   (smooth * weights.smooth) + 
+                   (max * weights.max);
+        }
+
+        // Expectimax Tiefe 1 für Performance während Training
+        function getBestMove(g) {
+            let bestScore = -Infinity;
+            let bestDir = -1;
+            
+            // Wir prüfen alle 4 Züge
+            for(let d=0; d<4; d++) {
+                let res = makeMove(g, d);
+                if(!res.moved) continue;
+                
+                // Bewertung des Resultats
+                let val = evaluate(res.grid);
+                if(val > bestScore) {
+                    bestScore = val;
+                    bestDir = d;
+                }
+            }
+            // Wenn kein logischer Zug gefunden, zufall (Verzweiflung)
+            if(bestDir === -1) bestDir = Math.floor(Math.random()*4);
+            return bestDir;
+        }
+
+        // --- 4. Loop & Controls ---
+        
+        let autoPlayInterval = null;
+        let trainingActive = false;
+
+        function toggleAutoPlay() {
+            if(trainingActive) toggleTraining(); // Stop training if playing
+            
+            if(autoPlayInterval) {
+                clearInterval(autoPlayInterval);
+                autoPlayInterval = null;
+                document.getElementById('btn-play').innerText = "▶ Auto Play";
+                document.getElementById('ai-status').innerText = "Pausiert.";
             } else {
-                // Computer Turn (Simuliert das Erscheinen von 2ern oder 4ern)
-                // Um Rechenzeit zu sparen, prüfen wir nur leere Felder, aber nicht alle Möglichkeiten
-                let emptyCoords = [];
-                for(let r=0; r<4; r++)
-                    for(let c=0; c<4; c++)
-                        if(grid[r][c] === 0) emptyCoords.push({r,c});
-                
-                if (emptyCoords.length === 0) return { score: evaluateGrid(grid) };
-
-                let avgScore = 0;
-                // Wir testen maximal 3 zufällige leere Felder um Performance zu sparen
-                let checks = Math.min(emptyCoords.length, 3); 
-                
-                for(let i=0; i<checks; i++) {
-                    // Wir nehmen an, es kommt meistens eine 2 (90% Wahrscheinlichkeit)
-                    // Vereinfachung: Wir rechnen nur mit der 2
-                    let coord = emptyCoords[i]; // Vereinfacht: Nimm die ersten paar
-                    
-                    let newGrid = cloneGrid(grid);
-                    newGrid[coord.r][coord.c] = 2;
-                    
-                    let res = expectimax(newGrid, depth - 1, true);
-                    avgScore += res.score;
-                }
-                
-                return { score: avgScore / checks };
+                document.getElementById('btn-play').innerText = "⏹ Stopp";
+                document.getElementById('ai-status').innerText = "Spiele mit aktuellen Gewichten...";
+                if(!gameActive) initGrid();
+                autoPlayInterval = setInterval(() => {
+                    if(!gameActive) {
+                        setTimeout(() => initGrid(), 1000); // Restart delay
+                        return;
+                    }
+                    let move = getBestMove(grid);
+                    applyMove(move);
+                }, 100); // Speed
             }
         }
 
-        // --- Main Function ---
-        function calculateBestMove() {
-            log("Berechne besten Zug...");
-            const grid = getGridState();
-            
-            // Tiefe 3 ist ein guter Kompromiss zwischen Intelligenz und Zeit im Browser
-            // Erhöhe auf 4 wenn dein Handy schnell ist, senke auf 2 wenn es hängt.
-            const depth = 3; 
-            
-            // Kurzes Timeout, damit das UI rendern kann bevor JS blockiert
-            setTimeout(() => {
-                const start = performance.now();
-                const result = expectimax(grid, depth, true);
-                const end = performance.now();
+        async function toggleTraining() {
+            if(autoPlayInterval) toggleAutoPlay();
 
-                if (result.move !== -1 && result.move !== undefined) {
-                    const moveName = DIR_NAMES[result.move];
-                    document.getElementById('result').innerText = "👉 " + moveName;
-                    log(`Berechnet in ${(end-start).toFixed(0)}ms. Score: ${result.score.toFixed(0)}`);
+            if(trainingActive) {
+                trainingActive = false;
+                document.getElementById('btn-train').innerText = "⚡ Trainieren";
+                document.getElementById('ai-status').innerText = "Training gestoppt.";
+                return;
+            }
+
+            trainingActive = true;
+            document.getElementById('btn-train').innerText = "⏹ Stop Training";
+            document.getElementById('ai-status').innerText = "Training läuft (Mutation & Test)...";
+            log("Training gestartet...");
+
+            // Training Loop (Asynchron damit UI nicht friert)
+            while(trainingActive) {
+                // 1. Mutieren (Verändere Gewichte leicht zufällig)
+                let oldWeights = {...weights};
+                
+                // Wähle zufällig einen Parameter zum Ändern
+                let keys = Object.keys(weights);
+                let key = keys[Math.floor(Math.random() * keys.length)];
+                let mutation = (Math.random() - 0.5) * 10; // +/- 5 Änderung
+                weights[key] += mutation;
+
+                updateBrainUI();
+
+                // 2. Testen (Spiele 1 schnelles Spiel im Kopf)
+                let testScore = playSimulation();
+
+                // 3. Bewerten
+                // Wenn Score besser (oder gleich gut) ist, behalte Mutation.
+                // Wir nutzen einen gleitenden Durchschnitt, um Glückstreffer zu filtern
+                if(testScore >= bestScoreAvg) {
+                    bestScoreAvg = (bestScoreAvg * 0.9) + (testScore * 0.1);
+                    bestWeights = {...weights}; // Speichern
+                    log(`Gen ${generation}: Verbessert! (${key}: ${weights[key].toFixed(1)}) -> Score: ${testScore}`);
                 } else {
-                    document.getElementById('result').innerText = "Kein Zug möglich / Game Over";
-                    log("Keine validen Züge gefunden.");
+                    // Schlechter? Rollback!
+                    weights = {...oldWeights};
+                    // Kleine Chance (5%), schlechte Mutation trotzdem zu behalten (gegen lokale Maxima)
+                    if(Math.random() < 0.05) {
+                        log(`Gen ${generation}: Zufallsmutation akzeptiert.`);
+                    }
                 }
-            }, 50);
+
+                generation++;
+                document.getElementById('gen-display').innerText = generation;
+                
+                // UI Update Break (damit Browser reagiert)
+                await new Promise(r => setTimeout(r, 5));
+            }
         }
+
+        function playSimulation() {
+            // Simuliert ein komplettes Spiel ohne Grafik
+            let simGrid = Array(4).fill().map(() => Array(4).fill(0));
+            // Start Setup
+            let empty = [];
+            for(let i=0; i<16; i++) empty.push(i);
+            let p1 = empty.splice(Math.floor(Math.random()*empty.length), 1)[0];
+            let p2 = empty.splice(Math.floor(Math.random()*empty.length), 1)[0];
+            simGrid[Math.floor(p1/4)][p1%4] = 2;
+            simGrid[Math.floor(p2/4)][p2%4] = 2;
+
+            let simScore = 0;
+            let simActive = true;
+            let moves = 0;
+
+            while(simActive && moves < 2000) { // Safety Limit
+                let bestDir = -1; 
+                let bestVal = -Infinity;
+
+                // Mini-Expectimax für Simulation
+                for(let d=0; d<4; d++) {
+                    let res = makeMove(simGrid, d);
+                    if(res.moved) {
+                        let val = evaluate(res.grid);
+                        if(val > bestVal) { bestVal = val; bestDir = d; }
+                    }
+                }
+
+                if(bestDir !== -1) {
+                    let res = makeMove(simGrid, bestDir);
+                    simGrid = res.grid;
+                    simScore += res.score;
+                    
+                    // Random Tile logic (simulation)
+                    let simEmpty = [];
+                    for(let r=0; r<4; r++) for(let c=0; c<4; c++) if(simGrid[r][c]===0) simEmpty.push({r,c});
+                    if(simEmpty.length > 0) {
+                        let {r, c} = simEmpty[Math.floor(Math.random()*simEmpty.length)];
+                        simGrid[r][c] = Math.random() < 0.9 ? 2 : 4;
+                    } else {
+                        simActive = false; 
+                    }
+                } else {
+                    simActive = false;
+                }
+                moves++;
+            }
+            return simScore;
+        }
+
+        // UI Helper
+        const gridEl = document.getElementById('grid');
+        function updateUI() {
+            gridEl.innerHTML = '';
+            let maxVal = 0;
+            for(let r=0; r<4; r++) {
+                for(let c=0; c<4; c++) {
+                    let val = grid[r][c];
+                    if(val > maxVal) maxVal = val;
+                    let cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.val = val;
+                    cell.innerText = val > 0 ? val : '';
+                    gridEl.appendChild(cell);
+                }
+            }
+            document.getElementById('score-display').innerText = score;
+            document.getElementById('max-tile-display').innerText = maxVal;
+        }
+        
+        function resetGame() {
+            initGrid();
+            log("Spiel zurückgesetzt.");
+        }
+
+        function updateBrainUI() {
+            document.getElementById('w-empty').innerText = weights.empty.toFixed(2);
+            document.getElementById('w-mono').innerText = weights.mono.toFixed(2);
+            document.getElementById('w-smooth').innerText = weights.smooth.toFixed(2);
+            document.getElementById('w-max').innerText = weights.max.toFixed(2);
+        }
+
+        initGrid();
+        updateBrainUI();
 
     </script>
 </body>
