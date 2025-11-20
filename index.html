@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Goldener Schnitt Art Miner ULTIMATE 💎</title>
+    <title>Goldener Schnitt Art Miner FINAL</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -18,15 +18,18 @@
             overflow: hidden;
         }
 
-        h1 { margin: 0 0 10px 0; font-size: 1.5rem; }
+        h1 { margin: 0 0 10px 0; font-size: 1.5rem; color: gold; }
         
         #canvas-container {
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
-            border: 4px solid #333;
+            box-shadow: 0 0 50px rgba(255, 215, 0, 0.1);
+            border: 2px solid #333;
             margin-bottom: 20px;
             width: 300px;
             height: 300px;
             background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         
         canvas { width: 100%; height: 100%; }
@@ -34,13 +37,16 @@
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
+            gap: 10px;
             width: 300px;
             margin-bottom: 20px;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             color: #aaa;
+            background: #222;
+            padding: 10px;
+            border-radius: 8px;
         }
-        .stat-val { color: #fff; font-weight: bold; font-family: monospace; }
+        .stat-val { color: #fff; font-weight: bold; font-family: monospace; font-size: 1.1em;}
 
         .mining-status {
             font-family: monospace;
@@ -48,34 +54,41 @@
             color: #0f0;
             margin-bottom: 10px;
             height: 20px;
+            text-align: center;
+            width: 100%;
         }
 
         .controls {
-            display: flex; gap: 10px;
+            display: flex; flex-direction: column; gap: 10px; width: 300px;
         }
+        
+        .btn-row { display: flex; gap: 10px; width: 100%; }
+
         button {
             background: #2196f3;
             color: white;
             border: none;
-            padding: 15px 20px;
+            padding: 12px;
             font-size: 16px;
-            border-radius: 30px;
+            border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
-            transition: transform 0.1s;
+            flex-grow: 1;
+            font-weight: bold;
+            transition: all 0.2s;
         }
-        button:active { transform: scale(0.95); }
+        button:active { transform: scale(0.95); opacity: 0.8; }
         
+        #btn-main { background: #2196f3; }
         #download-btn { background: #ff9800; display: none; }
-        #reset-btn { background: #555; }
+        #reset-btn { background: #444; font-size: 0.9em;}
 
     </style>
 </head>
 <body>
 
-    <h1>Goldener Schnitt Art Miner ULTIMATE</h1>
+    <h1>Art Miner ⚜️</h1>
     
-    <div class="mining-status" id="status-line">Initialisiere den ultimativen Komponisten...</div>
+    <div class="mining-status" id="status-line">Lade System...</div>
 
     <div id="canvas-container">
         <canvas id="artCanvas" width="500" height="500"></canvas>
@@ -88,212 +101,314 @@
         <div>Bester Score:</div>
         <div class="stat-val" id="best-score">0</div>
         
-        <div>CPU Speed:</div>
-        <div class="stat-val" id="speed">0 it/s</div>
+        <div>Speed:</div>
+        <div class="stat-val" id="speed">0 /s</div>
     </div>
 
     <div class="controls">
-        <button onclick="toggleMining()" id="btn-main">⛏️ Start Komponieren</button>
-        <button onclick="downloadArt()" id="download-btn">💾 Bestes Werk speichern</button>
-        <button onclick="resetMiner()" id="reset-btn">🔄 Reset & Neue Suche</button>
+        <button onclick="toggleMining()" id="btn-main">⛏️ STARTEN</button>
+        <div class="btn-row">
+            <button onclick="downloadArt()" id="download-btn">💾 Speichern</button>
+            <button onclick="resetMiner()" id="reset-btn">🔄 Reset</button>
+        </div>
     </div>
 
 <script>
+    // Globale Variablen Setup
     const canvas = document.getElementById('artCanvas');
     const ctx = canvas.getContext('2d');
     
+    // Unsichtbares Arbeits-Canvas
     const testCanvas = document.createElement('canvas');
     testCanvas.width = 500;
     testCanvas.height = 500;
     const tCtx = testCanvas.getContext('2d');
 
-    let isMining = false;
-    let iterations = 0;
-    let bestScore = 0;
-    let lastTime = Date.now();
-    let frameCount = 0;
-    let animationId;
-    let bestArtData = null; // Speichert das ImageData des besten Bildes
-
+    // Konstanten
     const PHI = 1.6180339887; 
     const W = testCanvas.width;
     const H = testCanvas.height;
 
-    // --- Farbhilfsfunktionen (für harmonische Paletten) ---
-    function hslToRgb(h, s, l) {
-        let c = (1 - Math.abs(2 * l - 1)) * s;
-        let x = c * (1 - Math.abs((h / 60) % 2 - 1));
-        let m = l - c / 2;
-        let r = 0, g = 0, b = 0;
+    // State
+    let isMining = false;
+    let iterations = 0;
+    let bestScore = -Infinity;
+    let lastTime = Date.now();
+    let frameCount = 0;
+    let animationId;
+    let bestArtData = null;
 
-        if (0 <= h && h < 60) { r = c; g = x; b = 0; }
-        else if (60 <= h && h < 120) { r = x; g = c; b = 0; }
-        else if (120 <= h && h < 180) { r = 0; g = c; b = x; }
-        else if (180 <= h && h < 240) { r = 0; g = x; b = c; }
-        else if (240 <= h && h < 300) { r = x; g = 0; b = c; }
-        else if (300 <= h && h < 360) { r = c; g = 0; b = x; }
-        r = Math.round((r + m) * 255);
-        g = Math.round((g + m) * 255);
-        b = Math.round((b + m) * 255);
+    // --- HARMONIE FUNKTIONEN ---
 
-        return [r, g, b];
-    }
-
-    // Erzeugt eine harmonische Farbpalette (z.B. triadisch)
     function getRandomHarmonicPalette() {
         const baseHue = Math.random() * 360;
-        const saturation = 0.5 + Math.random() * 0.5;
-        const lightness = 0.3 + Math.random() * 0.4; // Etwas dunkler für Kontrast
+        // Sättigung und Helligkeit für Web-Colors (0-100%)
+        const s = 50 + Math.random() * 50; 
+        const l = 30 + Math.random() * 40; 
 
         const palette = [];
-        palette.push([baseHue, saturation, lightness]); // Basis
+        palette.push([baseHue, s, l]); // Basis
         
-        // Triadische Harmonie
-        palette.push([(baseHue + 120) % 360, saturation, lightness]);
-        palette.push([(baseHue + 240) % 360, saturation, lightness]);
-        
-        // Oder Komplementär
-        if (Math.random() < 0.5) {
-            palette.push([(baseHue + 180) % 360, saturation, lightness]);
-        } else { // Analoge
-            palette.push([(baseHue + 30) % 360, saturation, lightness]);
-            palette.push([(baseHue - 30 + 360) % 360, saturation, lightness]);
+        // Harmonie-Typ wählen
+        const type = Math.random();
+        if (type < 0.33) { // Triadisch
+            palette.push([(baseHue + 120) % 360, s, l]);
+            palette.push([(baseHue + 240) % 360, s, l]);
+        } else if (type < 0.66) { // Komplementär & Split
+            palette.push([(baseHue + 180) % 360, s, l]);
+            palette.push([(baseHue + 150) % 360, s, l]);
+        } else { // Analog
+            palette.push([(baseHue + 30) % 360, s, l]);
+            palette.push([(baseHue - 30 + 360) % 360, s, l]);
         }
-        
         return palette;
     }
 
-
-    // --- 1. Der ULTIMATIVE Komponist ---
+    // --- GENERATOR ---
     function generateUltimateArt() {
         const palette = getRandomHarmonicPalette();
 
-        // Hintergrund basierend auf Palette
-        const bgHsl = palette[Math.floor(Math.random() * palette.length)];
-        tCtx.fillStyle = `hsl(${bgHsl[0]}, ${bgHsl[1]*100}%, ${bgHsl[2]*50}%)`; // Hintergrund ist dunkler
+        // Hintergrund
+        const bg = palette[0];
+        tCtx.fillStyle = `hsl(${bg[0]}, ${bg[1] * 0.5}%, 10%)`; // Sehr dunkler Background im Farbton
         tCtx.fillRect(0, 0, W, H);
 
-        const complexity = Math.floor(Math.random() * 40) + 15; // Etwas komplexer
-        tCtx.globalCompositeOperation = Math.random() > 0.5 ? 'screen' : 'overlay';
+        // Komplexität
+        const complexity = 15 + Math.floor(Math.random() * 35);
+        tCtx.globalCompositeOperation = Math.random() > 0.5 ? 'screen' : 'lighter';
         
-        const goldenLinesX = [W / PHI, W - (W / PHI)];
-        const goldenLinesY = [H / PHI, H - (H / PHI)];
-
+        // Goldene Linien Koordinaten
+        const gX = [W / PHI, W - (W / PHI)];
+        const gY = [H / PHI, H - (H / PHI)];
 
         for(let i=0; i<complexity; i++) {
             tCtx.beginPath();
             
-            // Wähle Farbe aus Palette
-            const hsl = palette[Math.floor(Math.random() * palette.length)];
-            const alpha = 0.1 + Math.random() * 0.4;
-            tCtx.fillStyle = `hsla(${hsl[0]}, ${hsl[1]*100}%, ${hsl[2]*100}%, ${alpha})`;
+            // Farbe
+            const col = palette[Math.floor(Math.random() * palette.length)];
+            const alpha = 0.1 + Math.random() * 0.5;
+            tCtx.fillStyle = `hsla(${col[0]}, ${col[1]}%, ${col[2]}%, ${alpha})`;
+            tCtx.strokeStyle = `hsla(${col[0]}, ${col[1]}%, ${col[2]}%, ${alpha})`;
             
+            // Position & Größe
             let x, y, size;
-
-            // Höhere Präferenz für goldene Platzierung
-            if (Math.random() < 0.7) { // 70% Chance auf goldene Platzierung
-                x = goldenLinesX[Math.floor(Math.random() * 2)] + (Math.random() * W * 0.1 - W * 0.05); // leichte Abweichung
-                y = goldenLinesY[Math.floor(Math.random() * 2)] + (Math.random() * H * 0.1 - H * 0.05);
-                size = Math.min(W,H) / PHI / (1 + Math.random()*2); 
+            
+            // 80% Wahrscheinlichkeit für harmonische Platzierung
+            if (Math.random() < 0.8) {
+                // Snap to golden lines mit leichtem Jitter
+                x = gX[Math.floor(Math.random()*2)] + (Math.random()*40 - 20);
+                y = gY[Math.floor(Math.random()*2)] + (Math.random()*40 - 20);
+                // Größe basierend auf Goldenem Schnitt
+                size = (Math.min(W,H) / PHI) / (1 + Math.random()*3); 
             } else {
                 x = Math.random() * W;
                 y = Math.random() * H;
-                size = Math.random() * 150 + 30;
+                size = Math.random() * 100 + 20;
             }
 
-            // Mehr Formvielfalt
-            const type = Math.random();
-            if(type < 0.25) { // Kreis
+            // Form
+            const shape = Math.random();
+            if(shape < 0.3) { // Kreis
                 tCtx.arc(x, y, size, 0, Math.PI * 2);
-            } else if (type < 0.5) { // Rechteck
+                tCtx.fill();
+            } else if (shape < 0.6) { // Rechteck
                 tCtx.rect(x - size/2, y - size/2, size, size);
-            } else if (type < 0.75) { // Dreieck
-                tCtx.moveTo(x, y - size);
-                tCtx.lineTo(x + size, y + size/2);
-                tCtx.lineTo(x - size, y + size/2);
-            } else { // Linie
-                 tCtx.lineWidth = Math.random() * 5 + 1;
-                 tCtx.strokeStyle = `hsla(${hsl[0]}, ${hsl[1]*100}%, ${hsl[2]*100}%, ${alpha*2})`;
-                 tCtx.beginPath();
-                 tCtx.moveTo(x,y);
-                 tCtx.lineTo(x + (Math.random()-0.5)*W*0.5, y + (Math.random()-0.5)*H*0.5);
-                 tCtx.stroke();
+                tCtx.fill();
+            } else { // Linie / Struktur
+                tCtx.lineWidth = 1 + Math.random() * 5;
+                tCtx.moveTo(x, y);
+                tCtx.lineTo(x + (Math.random()-0.5)*200, y + (Math.random()-0.5)*200);
+                tCtx.stroke();
             }
-            tCtx.fill();
         }
     }
 
-    // --- 2. Der ULTIMATIVE Kritiker ---
-    function calculateUltimateBeautyScore() {
+    // --- ANALYSER (Der Kritiker) ---
+    function calculateScore() {
+        // Pixel-Daten holen (Performance-Heavy!)
         const imgData = tCtx.getImageData(0, 0, W, H); 
         const data = imgData.data;
         let score = 0;
 
-        // Kriterium A: Helligkeit und Kontrast
-        let totalBrightness = 0;
-        let minBright = 765, maxBright = 0; // Max 255*3
-        for(let i=0; i<data.length; i+=4) {
-            const bright = (data[i] + data[i+1] + data[i+2]);
-            totalBrightness += bright;
-            minBright = Math.min(minBright, bright);
-            maxBright = Math.max(maxBright, bright);
-        }
-        const avgBright = totalBrightness / (data.length/4);
-        score += Math.max(0, 100 - Math.abs(382 - avgBright)); // Ideale mittlere Helligkeit
-        score += (maxBright - minBright) / 10; // Kontrast ist wichtig
+        // Wir prüfen nur jeden 10. Pixel für Performance (Mobile Optimierung)
+        // Das reicht für statistische Ästhetik völlig aus
+        const step = 10; 
+        
+        let totalLum = 0;
+        let minLum = 255, maxLum = 0;
+        let centerMass = 0;
 
-        // Kriterium B: Symmetrie und Balance (umfassender)
-        let symmetryDiffH = 0; // Horizontal
-        let symmetryDiffV = 0; // Vertikal
-        let centerBias = 0;    // Konzentration in der Mitte
-
-        for(let y=0; y<H; y+=5) {
-            for(let x=0; x<W; x+=5) {
+        for(let y=0; y<H; y+=step) {
+            for(let x=0; x<W; x+=step) {
                 const i = (y * W + x) * 4;
-                const color = [data[i], data[i+1], data[i+2]];
+                // Einfache Luminanz (Helligkeit)
+                const lum = (data[i] + data[i+1] + data[i+2]) / 3;
+                
+                totalLum += lum;
+                if(lum < minLum) minLum = lum;
+                if(lum > maxLum) maxLum = lum;
 
-                // Horizontale Symmetrie (links vs rechts)
-                if (x < W/2) {
-                    const iR = (y * W + (W-1-x)) * 4;
-                    symmetryDiffH += Math.abs(color[0] - data[iR]) + Math.abs(color[1] - data[iR+1]) + Math.abs(color[2] - data[iR+2]);
-                }
-                // Vertikale Symmetrie (oben vs unten)
-                if (y < H/2) {
-                    const iB = ((H-1-y) * W + x) * 4;
-                    symmetryDiffV += Math.abs(color[0] - data[iB]) + Math.abs(color[1] - data[iB+1]) + Math.abs(color[2] - data[iB+2]);
-                }
-
-                // Center Bias (Sind die Elemente in der Mitte konzentriert?)
-                const distToCenter = Math.hypot(x - W/2, y - H/2);
-                if (distToCenter < Math.min(W,H)/4) { // Inneres Viertel
-                    centerBias += (color[0]+color[1]+color[2])/3; // Helligkeit im Zentrum
+                // Center Bias (Helligkeit in der Mitte ist gut)
+                const dx = x - W/2;
+                const dy = y - H/2;
+                if (dx*dx + dy*dy < 100*100) {
+                    centerMass += lum;
                 }
             }
         }
-        score += Math.max(0, (500000 - symmetryDiffH) / 1000); // Weniger H-Diff = mehr Punkte
-        score += Math.max(0, (500000 - symmetryDiffV) / 1000); // Weniger V-Diff = mehr Punkte
-        score += centerBias / 5000; // Etwas mehr Helligkeit in der Mitte wird belohnt
 
-        // --- KRITERIUM: Goldener Schnitt Präsenz (Verfeinert) ---
-        let goldenScore = 0;
-        
-        // Prüfe Farbgradienten über Goldene Linien
+        const pixelsChecked = (W/step) * (H/step);
+        const avgLum = totalLum / pixelsChecked;
+
+        // 1. Kontrast-Score (Wir wollen Dynamik!)
+        score += (maxLum - minLum) * 2;
+
+        // 2. Helligkeits-Balance (Nicht zu dunkel, nicht zu weiß)
+        // Idealwert ca 80-100 (auf einer 0-255 Skala für abstrakte Kunst auf Schwarz)
+        score += 200 - Math.abs(90 - avgLum) * 2;
+
+        // 3. Fokus (Mitte sollte heller sein als Rand -> Vignette Effekt natürlich erzeugt)
+        score += (centerMass / pixelsChecked) * 0.5;
+
+        // 4. Goldener Schnitt Prüfung (Sampling an den Linien)
+        // Wir prüfen 4 Punkte
         const checkPoints = [
-            { x: W / PHI, y: H / 2 }, { x: W - (W / PHI), y: H / 2 },
-            { x: W / 2, y: H / PHI }, { x: W / 2, y: H - (H / PHI) }
+            ((H/PHI) * W + (W/PHI)) * 4,
+            ((H/PHI) * W + (W - W/PHI)) * 4,
+            ((H - H/PHI) * W + (W/PHI)) * 4,
+            ((H - H/PHI) * W + (W - W/PHI)) * 4
         ];
 
-        checkPoints.forEach(p => {
-            const x1 = Math.max(0, Math.floor(p.x - 2));
-            const x2 = Math.min(W-1, Math.floor(p.x + 2));
-            const y1 = Math.max(0, Math.floor(p.y - 2));
-            const y2 = Math.min(H-1, Math.floor(p.y + 2));
+        let goldenHits = 0;
+        checkPoints.forEach(idx => {
+            idx = Math.floor(idx);
+            // Ist an diesen Punkten "etwas los" (heller als Durchschnitt)?
+            if (data[idx] + data[idx+1] + data[idx+2] > avgLum * 3 + 50) {
+                goldenHits++;
+            }
+        });
+        score += goldenHits * 150; // Großer Bonus für Treffer am Goldenen Schnitt
 
-            const i_left = (Math.floor(p.y) * W + x1) * 4;
-            const i_right = (Math.floor(p.y) * W + x2) * 4;
-            const i_top = (y1 * W + Math.floor(p.x)) * 4;
-            const i_bottom = (y2 * W + Math.floor(p.x)) * 4;
+        // Zufallsfaktor für kreative Überraschungen
+        score += Math.random() * 50;
 
-            // Unterschied über die goldene Linie
-            goldenScore += (Math.abs(data[i_left] - data[i_right]) + Math.abs(data[i_left+1] - data[i_right
+        return Math.floor(score);
+    }
+
+    // --- MINING LOOP ---
+    function mine() {
+        if(!isMining) return;
+
+        // Mobile Optimierung: Weniger pro Frame, damit UI responsive bleibt
+        const batch = 3; 
+
+        try {
+            for(let i=0; i<batch; i++) {
+                iterations++;
+                generateUltimateArt();
+                const score = calculateScore();
+
+                if(score > bestScore) {
+                    bestScore = score;
+                    // Speichern
+                    bestArtData = tCtx.getImageData(0, 0, W, H);
+                    // Anzeigen
+                    ctx.putImageData(bestArtData, 0, 0);
+                    
+                    // UI Update sofort bei Fund
+                    document.getElementById('best-score').innerText = bestScore;
+                    document.getElementById('status-line').innerText = `💎 GEFUNDEN! Score: ${score}`;
+                    document.getElementById('status-line').style.color = '#fff';
+                    document.getElementById('download-btn').style.display = 'block';
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            isMining = false;
+            document.getElementById('status-line').innerText = "Fehler im Mining Prozess.";
+        }
+
+        frameCount += batch;
+        document.getElementById('count').innerText = iterations.toLocaleString();
+
+        const now = Date.now();
+        if(now - lastTime > 1000) {
+            document.getElementById('speed').innerText = frameCount + " /s";
+            if(frameCount > 0 && isMining) {
+                document.getElementById('status-line').innerText = "Analysiere Kompositionen...";
+                document.getElementById('status-line').style.color = '#0f0';
+            }
+            frameCount = 0;
+            lastTime = now;
+        }
+
+        animationId = requestAnimationFrame(mine);
+    }
+
+    // --- BUTTON FUNCTIONS ---
+    function toggleMining() {
+        const btn = document.getElementById('btn-main');
+        if(isMining) {
+            isMining = false;
+            cancelAnimationFrame(animationId);
+            btn.innerText = "⛏️ WEITER SUCHEN";
+            btn.style.background = "#2196f3";
+            document.getElementById('status-line').innerText = "Pausiert.";
+        } else {
+            isMining = true;
+            btn.innerText = "⏸ PAUSE";
+            btn.style.background = "#f44336";
+            mine();
+        }
+    }
+
+    function downloadArt() {
+        if (!bestArtData) return;
+        
+        const dCanvas = document.createElement('canvas');
+        dCanvas.width = W;
+        dCanvas.height = H;
+        dCanvas.getContext('2d').putImageData(bestArtData, 0, 0);
+
+        const link = document.createElement('a');
+        link.download = `Meisterwerk-${bestScore}.png`;
+        link.href = dCanvas.toDataURL();
+        link.click();
+    }
+
+    function resetMiner() {
+        isMining = false;
+        cancelAnimationFrame(animationId);
+        
+        iterations = 0;
+        bestScore = -Infinity;
+        bestArtData = null;
+        
+        document.getElementById('count').innerText = "0";
+        document.getElementById('best-score').innerText = "0";
+        document.getElementById('speed').innerText = "0 /s";
+        document.getElementById('btn-main').innerText = "⛏️ STARTEN";
+        document.getElementById('btn-main').style.background = "#2196f3";
+        document.getElementById('download-btn').style.display = 'none';
+        
+        // Startbildschirm zeichnen
+        ctx.fillStyle = "#111";
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "#444";
+        ctx.font = "20px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText("Bereit.", W/2, H/2);
+
+        document.getElementById('status-line').innerText = "System Bereit.";
+        document.getElementById('status-line').style.color = '#0f0';
+    }
+
+    // --- INIT ---
+    window.onload = function() {
+        resetMiner();
+    };
+
+</script>
+</body>
+</html>
  
