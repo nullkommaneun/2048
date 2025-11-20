@@ -3,412 +3,343 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Goldener Schnitt Art Miner FINAL</title>
+    <title>Art Miner: Transparent Mode</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #111;
-            color: #eee;
+            font-family: 'Courier New', Courier, monospace; /* Monospace für Hacker-Look */
+            background-color: #000;
+            color: #0f0;
             display: flex;
             flex-direction: column;
             align-items: center;
             margin: 0;
-            padding: 20px;
+            padding: 10px;
             height: 100vh;
             overflow: hidden;
         }
 
-        h1 { margin: 0 0 10px 0; font-size: 1.5rem; color: gold; }
+        h1 { margin: 5px 0; font-size: 1.2rem; color: #fff; text-transform: uppercase; letter-spacing: 2px; }
         
         #canvas-container {
-            box-shadow: 0 0 50px rgba(255, 215, 0, 0.1);
-            border: 2px solid #333;
-            margin-bottom: 20px;
+            border: 1px solid #333;
+            margin: 10px 0;
             width: 300px;
             height: 300px;
-            background: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background: #111;
+            position: relative;
         }
         
-        canvas { width: 100%; height: 100%; }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* Overlay für den aktuellen Versuch (flackert) */
+        #scan-line {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 2px;
+            background: rgba(0, 255, 0, 0.5);
+            box-shadow: 0 0 10px #0f0;
+            display: none;
+        }
 
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            width: 300px;
-            margin-bottom: 20px;
-            font-size: 0.8rem;
-            color: #aaa;
-            background: #222;
-            padding: 10px;
-            border-radius: 8px;
-        }
-        .stat-val { color: #fff; font-weight: bold; font-family: monospace; font-size: 1.1em;}
-
-        .mining-status {
-            font-family: monospace;
-            font-size: 0.8rem;
-            color: #0f0;
+            gap: 8px;
+            width: 320px;
             margin-bottom: 10px;
-            height: 20px;
-            text-align: center;
-            width: 100%;
+            background: #111;
+            padding: 10px;
+            border: 1px solid #222;
+            font-size: 0.8rem;
         }
+        .stat-label { color: #666; }
+        .stat-val { color: #fff; font-weight: bold; text-align: right;}
+        
+        /* Highlight für den Live-Wert */
+        #current-score { color: #888; } 
+        #best-score { color: #0f0; text-shadow: 0 0 5px #0f0; }
 
         .controls {
-            display: flex; flex-direction: column; gap: 10px; width: 300px;
+            display: flex; gap: 10px; width: 320px;
         }
-        
-        .btn-row { display: flex; gap: 10px; width: 100%; }
-
         button {
-            background: #2196f3;
-            color: white;
-            border: none;
-            padding: 12px;
-            font-size: 16px;
-            border-radius: 8px;
+            background: #004400;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 15px;
+            font-size: 14px;
             cursor: pointer;
             flex-grow: 1;
-            font-weight: bold;
-            transition: all 0.2s;
+            text-transform: uppercase;
+            font-family: inherit;
         }
-        button:active { transform: scale(0.95); opacity: 0.8; }
-        
-        #btn-main { background: #2196f3; }
-        #download-btn { background: #ff9800; display: none; }
-        #reset-btn { background: #444; font-size: 0.9em;}
+        button:active { background: #006600; color: #fff; }
+        #download-btn { border-color: #ff9800; color: #ff9800; display: none;}
+
+        #log {
+            width: 320px;
+            height: 60px;
+            overflow: hidden;
+            font-size: 10px;
+            color: #444;
+            margin-top: 5px;
+            border-top: 1px solid #222;
+            padding-top: 5px;
+        }
 
     </style>
 </head>
 <body>
 
-    <h1>Art Miner ⚜️</h1>
+    <h1>Neural Art Miner</h1>
     
-    <div class="mining-status" id="status-line">Lade System...</div>
-
     <div id="canvas-container">
         <canvas id="artCanvas" width="500" height="500"></canvas>
+        <div id="scan-line"></div>
     </div>
 
     <div class="stats-grid">
-        <div>Geprüfte Werke:</div>
-        <div class="stat-val" id="count">0</div>
+        <span class="stat-label">Versuche:</span>
+        <span class="stat-val" id="count">0</span>
         
-        <div>Bester Score:</div>
-        <div class="stat-val" id="best-score">0</div>
+        <span class="stat-label">Live Score:</span>
+        <span class="stat-val" id="current-score">---</span>
+
+        <span class="stat-label">Highscore:</span>
+        <span class="stat-val" id="best-score">0</span>
         
-        <div>Speed:</div>
-        <div class="stat-val" id="speed">0 /s</div>
+        <span class="stat-label">Speed:</span>
+        <span class="stat-val" id="speed">0 /s</span>
     </div>
 
     <div class="controls">
-        <button onclick="toggleMining()" id="btn-main">⛏️ STARTEN</button>
-        <div class="btn-row">
-            <button onclick="downloadArt()" id="download-btn">💾 Speichern</button>
-            <button onclick="resetMiner()" id="reset-btn">🔄 Reset</button>
-        </div>
+        <button onclick="toggleMining()" id="btn-main">Start System</button>
+        <button onclick="downloadArt()" id="download-btn">Save</button>
     </div>
+    
+    <div id="log">System bereit. Warte auf Input...</div>
 
 <script>
-    // Globale Variablen Setup
     const canvas = document.getElementById('artCanvas');
     const ctx = canvas.getContext('2d');
     
-    // Unsichtbares Arbeits-Canvas
-    const testCanvas = document.createElement('canvas');
-    testCanvas.width = 500;
-    testCanvas.height = 500;
-    const tCtx = testCanvas.getContext('2d');
+    // Worker Canvas (Hier wird gearbeitet)
+    const workCanvas = document.createElement('canvas');
+    workCanvas.width = 500;
+    workCanvas.height = 500;
+    const wCtx = workCanvas.getContext('2d');
 
-    // Konstanten
     const PHI = 1.6180339887; 
-    const W = testCanvas.width;
-    const H = testCanvas.height;
+    const W = 500;
+    const H = 500;
 
-    // State
     let isMining = false;
     let iterations = 0;
-    let bestScore = -Infinity;
+    let bestScore = 0; // Start bei 0, nicht negativ
     let lastTime = Date.now();
     let frameCount = 0;
     let animationId;
     let bestArtData = null;
 
-    // --- HARMONIE FUNKTIONEN ---
+    // Logging Funktion
+    function log(msg) {
+        const el = document.getElementById('log');
+        el.innerHTML = `> ${msg}<br>` + el.innerHTML;
+    }
 
-    function getRandomHarmonicPalette() {
-        const baseHue = Math.random() * 360;
-        // Sättigung und Helligkeit für Web-Colors (0-100%)
-        const s = 50 + Math.random() * 50; 
-        const l = 30 + Math.random() * 40; 
-
-        const palette = [];
-        palette.push([baseHue, s, l]); // Basis
-        
-        // Harmonie-Typ wählen
-        const type = Math.random();
-        if (type < 0.33) { // Triadisch
-            palette.push([(baseHue + 120) % 360, s, l]);
-            palette.push([(baseHue + 240) % 360, s, l]);
-        } else if (type < 0.66) { // Komplementär & Split
-            palette.push([(baseHue + 180) % 360, s, l]);
-            palette.push([(baseHue + 150) % 360, s, l]);
-        } else { // Analog
-            palette.push([(baseHue + 30) % 360, s, l]);
-            palette.push([(baseHue - 30 + 360) % 360, s, l]);
-        }
-        return palette;
+    function getRandomPalette() {
+        const h = Math.random() * 360;
+        return [
+            [h, 50, 20], // Dunkel
+            [(h + 180) % 360, 80, 60], // Hell & Kontrast
+            [(h + 30) % 360, 60, 40] // Akzent
+        ];
     }
 
     // --- GENERATOR ---
-    function generateUltimateArt() {
-        const palette = getRandomHarmonicPalette();
-
-        // Hintergrund
-        const bg = palette[0];
-        tCtx.fillStyle = `hsl(${bg[0]}, ${bg[1] * 0.5}%, 10%)`; // Sehr dunkler Background im Farbton
-        tCtx.fillRect(0, 0, W, H);
-
-        // Komplexität
-        const complexity = 15 + Math.floor(Math.random() * 35);
-        tCtx.globalCompositeOperation = Math.random() > 0.5 ? 'screen' : 'lighter';
+    function generate(ctx) {
+        const pal = getRandomPalette();
         
-        // Goldene Linien Koordinaten
-        const gX = [W / PHI, W - (W / PHI)];
-        const gY = [H / PHI, H - (H / PHI)];
+        // Background: Dunkel halten für Kontrast
+        const bg = pal[0];
+        ctx.fillStyle = `hsl(${bg[0]}, ${bg[1]}%, 5%)`;
+        ctx.fillRect(0, 0, W, H);
 
-        for(let i=0; i<complexity; i++) {
-            tCtx.beginPath();
+        const shapes = Math.floor(Math.random() * 20) + 5;
+        
+        // Composite Mode zufällig wählen (das macht die coolen Lichteffekte)
+        const modes = ['source-over', 'screen', 'lighter', 'overlay'];
+        ctx.globalCompositeOperation = modes[Math.floor(Math.random() * modes.length)];
+
+        for(let i=0; i<shapes; i++) {
+            ctx.beginPath();
+            const col = pal[Math.floor(Math.random() * pal.length)];
+            ctx.fillStyle = `hsla(${col[0]}, ${col[1]}%, ${col[2]}%, ${Math.random() * 0.5})`;
             
-            // Farbe
-            const col = palette[Math.floor(Math.random() * palette.length)];
-            const alpha = 0.1 + Math.random() * 0.5;
-            tCtx.fillStyle = `hsla(${col[0]}, ${col[1]}%, ${col[2]}%, ${alpha})`;
-            tCtx.strokeStyle = `hsla(${col[0]}, ${col[1]}%, ${col[2]}%, ${alpha})`;
-            
-            // Position & Größe
-            let x, y, size;
-            
-            // 80% Wahrscheinlichkeit für harmonische Platzierung
-            if (Math.random() < 0.8) {
-                // Snap to golden lines mit leichtem Jitter
-                x = gX[Math.floor(Math.random()*2)] + (Math.random()*40 - 20);
-                y = gY[Math.floor(Math.random()*2)] + (Math.random()*40 - 20);
-                // Größe basierend auf Goldenem Schnitt
-                size = (Math.min(W,H) / PHI) / (1 + Math.random()*3); 
+            // Versuche Goldener Schnitt (mit Streuung)
+            let x = (Math.random() > 0.5 ? W/PHI : W - W/PHI) + (Math.random()*100 - 50);
+            let y = (Math.random() > 0.5 ? H/PHI : H - H/PHI) + (Math.random()*100 - 50);
+            let s = (Math.random() * 100) + 20;
+
+            if(Math.random() > 0.7) { // 30% komplett zufällig
+                x = Math.random() * W; y = Math.random() * H;
+            }
+
+            if(Math.random() > 0.5) {
+                ctx.arc(x, y, s, 0, Math.PI*2);
             } else {
-                x = Math.random() * W;
-                y = Math.random() * H;
-                size = Math.random() * 100 + 20;
+                ctx.rect(x - s/2, y - s/2, s, s);
             }
-
-            // Form
-            const shape = Math.random();
-            if(shape < 0.3) { // Kreis
-                tCtx.arc(x, y, size, 0, Math.PI * 2);
-                tCtx.fill();
-            } else if (shape < 0.6) { // Rechteck
-                tCtx.rect(x - size/2, y - size/2, size, size);
-                tCtx.fill();
-            } else { // Linie / Struktur
-                tCtx.lineWidth = 1 + Math.random() * 5;
-                tCtx.moveTo(x, y);
-                tCtx.lineTo(x + (Math.random()-0.5)*200, y + (Math.random()-0.5)*200);
-                tCtx.stroke();
-            }
+            ctx.fill();
         }
     }
 
-    // --- ANALYSER (Der Kritiker) ---
-    function calculateScore() {
-        // Pixel-Daten holen (Performance-Heavy!)
-        const imgData = tCtx.getImageData(0, 0, W, H); 
+    // --- BEWERTUNG (Gefixt: Keine negativen Zahlen) ---
+    function rate() {
+        const imgData = wCtx.getImageData(0, 0, W, H);
         const data = imgData.data;
-        let score = 0;
-
-        // Wir prüfen nur jeden 10. Pixel für Performance (Mobile Optimierung)
-        // Das reicht für statistische Ästhetik völlig aus
-        const step = 10; 
         
+        // Sampling (Performance)
+        const step = 20; 
         let totalLum = 0;
-        let minLum = 255, maxLum = 0;
-        let centerMass = 0;
+        let min = 255, max = 0;
+        let goldenHits = 0;
+
+        // Prüfpunkte für Goldenen Schnitt
+        const gPoints = [
+            Math.floor((H/PHI)*W + W/PHI)*4,
+            Math.floor((H/PHI)*W + (W - W/PHI))*4
+        ];
 
         for(let y=0; y<H; y+=step) {
             for(let x=0; x<W; x+=step) {
-                const i = (y * W + x) * 4;
-                // Einfache Luminanz (Helligkeit)
-                const lum = (data[i] + data[i+1] + data[i+2]) / 3;
-                
-                totalLum += lum;
-                if(lum < minLum) minLum = lum;
-                if(lum > maxLum) maxLum = lum;
-
-                // Center Bias (Helligkeit in der Mitte ist gut)
-                const dx = x - W/2;
-                const dy = y - H/2;
-                if (dx*dx + dy*dy < 100*100) {
-                    centerMass += lum;
-                }
+                const i = (y*W + x)*4;
+                const l = (data[i] + data[i+1] + data[i+2]) / 3;
+                totalLum += l;
+                if(l < min) min = l;
+                if(l > max) max = l;
             }
         }
-
-        const pixelsChecked = (W/step) * (H/step);
-        const avgLum = totalLum / pixelsChecked;
-
-        // 1. Kontrast-Score (Wir wollen Dynamik!)
-        score += (maxLum - minLum) * 2;
-
-        // 2. Helligkeits-Balance (Nicht zu dunkel, nicht zu weiß)
-        // Idealwert ca 80-100 (auf einer 0-255 Skala für abstrakte Kunst auf Schwarz)
-        score += 200 - Math.abs(90 - avgLum) * 2;
-
-        // 3. Fokus (Mitte sollte heller sein als Rand -> Vignette Effekt natürlich erzeugt)
-        score += (centerMass / pixelsChecked) * 0.5;
-
-        // 4. Goldener Schnitt Prüfung (Sampling an den Linien)
-        // Wir prüfen 4 Punkte
-        const checkPoints = [
-            ((H/PHI) * W + (W/PHI)) * 4,
-            ((H/PHI) * W + (W - W/PHI)) * 4,
-            ((H - H/PHI) * W + (W/PHI)) * 4,
-            ((H - H/PHI) * W + (W - W/PHI)) * 4
-        ];
-
-        let goldenHits = 0;
-        checkPoints.forEach(idx => {
-            idx = Math.floor(idx);
-            // Ist an diesen Punkten "etwas los" (heller als Durchschnitt)?
-            if (data[idx] + data[idx+1] + data[idx+2] > avgLum * 3 + 50) {
-                goldenHits++;
-            }
+        
+        // Check Golden Points (einfacher Test)
+        gPoints.forEach(idx => {
+            if(data[idx] > 100) goldenHits++;
         });
-        score += goldenHits * 150; // Großer Bonus für Treffer am Goldenen Schnitt
 
-        // Zufallsfaktor für kreative Überraschungen
-        score += Math.random() * 50;
+        const avg = totalLum / ((W/step)*(H/step));
+        
+        let score = 0;
+
+        // 1. Kontrast Bonus (0 bis 100 Punkte)
+        score += (max - min) / 2.55; 
+
+        // 2. Helligkeit Strafe (Wir wollen ca. Helligkeit 60-120)
+        // Math.abs verhindert negativ nicht, aber zieht ab.
+        // Wir nutzen Math.max(0, ...), um den Abzug zu begrenzen.
+        const distFromIdeal = Math.abs(90 - avg);
+        const brightnessScore = Math.max(0, 100 - distFromIdeal); 
+        score += brightnessScore;
+
+        // 3. Goldener Schnitt Bonus
+        score += goldenHits * 50;
+
+        // 4. Zufall
+        score += Math.random() * 20;
 
         return Math.floor(score);
     }
 
-    // --- MINING LOOP ---
     function mine() {
         if(!isMining) return;
 
-        // Mobile Optimierung: Weniger pro Frame, damit UI responsive bleibt
-        const batch = 3; 
+        const BATCH = 5; 
+        let currentBatchBest = 0;
 
-        try {
-            for(let i=0; i<batch; i++) {
-                iterations++;
-                generateUltimateArt();
-                const score = calculateScore();
+        for(let i=0; i<BATCH; i++) {
+            iterations++;
+            generate(wCtx); // Auf Arbeits-Canvas malen
+            const score = rate();
 
-                if(score > bestScore) {
-                    bestScore = score;
-                    // Speichern
-                    bestArtData = tCtx.getImageData(0, 0, W, H);
-                    // Anzeigen
-                    ctx.putImageData(bestArtData, 0, 0);
-                    
-                    // UI Update sofort bei Fund
-                    document.getElementById('best-score').innerText = bestScore;
-                    document.getElementById('status-line').innerText = `💎 GEFUNDEN! Score: ${score}`;
-                    document.getElementById('status-line').style.color = '#fff';
-                    document.getElementById('download-btn').style.display = 'block';
-                }
+            currentBatchBest = score; // Für Live Anzeige
+
+            if(score > bestScore) {
+                bestScore = score;
+                // Wir speichern das Bild
+                bestArtData = wCtx.getImageData(0, 0, W, H);
+                // Und zeigen es an
+                ctx.putImageData(bestArtData, 0, 0);
+                
+                document.getElementById('best-score').innerText = bestScore;
+                document.getElementById('download-btn').style.display = 'block';
+                log(`Neuer Rekord: ${score}`);
             }
-        } catch (e) {
-            console.error(e);
-            isMining = false;
-            document.getElementById('status-line').innerText = "Fehler im Mining Prozess.";
         }
 
-        frameCount += batch;
+        // Live Wert anzeigen (zeigt, dass gearbeitet wird)
+        document.getElementById('current-score').innerText = currentBatchBest;
         document.getElementById('count').innerText = iterations.toLocaleString();
 
-        const now = Date.now();
-        if(now - lastTime > 1000) {
+        frameCount += BATCH;
+        
+        // Speed Check
+        if(Date.now() - lastTime > 1000) {
             document.getElementById('speed').innerText = frameCount + " /s";
-            if(frameCount > 0 && isMining) {
-                document.getElementById('status-line').innerText = "Analysiere Kompositionen...";
-                document.getElementById('status-line').style.color = '#0f0';
-            }
             frameCount = 0;
-            lastTime = now;
+            lastTime = Date.now();
         }
 
         animationId = requestAnimationFrame(mine);
     }
 
-    // --- BUTTON FUNCTIONS ---
     function toggleMining() {
         const btn = document.getElementById('btn-main');
+        const line = document.getElementById('scan-line');
+        
         if(isMining) {
             isMining = false;
             cancelAnimationFrame(animationId);
-            btn.innerText = "⛏️ WEITER SUCHEN";
-            btn.style.background = "#2196f3";
-            document.getElementById('status-line').innerText = "Pausiert.";
+            btn.innerText = "Start System";
+            btn.style.background = "#004400";
+            line.style.display = 'none';
+            log("System pausiert.");
         } else {
             isMining = true;
-            btn.innerText = "⏸ PAUSE";
-            btn.style.background = "#f44336";
+            btn.innerText = "STOP";
+            btn.style.background = "#aa0000";
+            line.style.display = 'block';
+            // Animation für Scanline
+            let pos = 0;
+            function moveLine() {
+                if(!isMining) return;
+                pos = (pos + 2) % 300;
+                line.style.top = pos + 'px';
+                requestAnimationFrame(moveLine);
+            }
+            moveLine();
+            
+            log("Mining gestartet...");
             mine();
         }
     }
 
     function downloadArt() {
-        if (!bestArtData) return;
-        
+        if(!bestArtData) return;
         const dCanvas = document.createElement('canvas');
-        dCanvas.width = W;
-        dCanvas.height = H;
+        dCanvas.width = W; dCanvas.height = H;
         dCanvas.getContext('2d').putImageData(bestArtData, 0, 0);
-
         const link = document.createElement('a');
-        link.download = `Meisterwerk-${bestScore}.png`;
+        link.download = `art_score_${bestScore}.png`;
         link.href = dCanvas.toDataURL();
         link.click();
     }
 
-    function resetMiner() {
-        isMining = false;
-        cancelAnimationFrame(animationId);
-        
-        iterations = 0;
-        bestScore = -Infinity;
-        bestArtData = null;
-        
-        document.getElementById('count').innerText = "0";
-        document.getElementById('best-score').innerText = "0";
-        document.getElementById('speed').innerText = "0 /s";
-        document.getElementById('btn-main').innerText = "⛏️ STARTEN";
-        document.getElementById('btn-main').style.background = "#2196f3";
-        document.getElementById('download-btn').style.display = 'none';
-        
-        // Startbildschirm zeichnen
-        ctx.fillStyle = "#111";
-        ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = "#444";
-        ctx.font = "20px monospace";
-        ctx.textAlign = "center";
-        ctx.fillText("Bereit.", W/2, H/2);
-
-        document.getElementById('status-line').innerText = "System Bereit.";
-        document.getElementById('status-line').style.color = '#0f0';
-    }
-
-    // --- INIT ---
-    window.onload = function() {
-        resetMiner();
-    };
+    // Init
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = '#222';
+    ctx.font = "20px Courier New";
+    ctx.textAlign = "center";
+    ctx.fillText("SYSTEM READY", W/2, H/2);
 
 </script>
 </body>
 </html>
- 
