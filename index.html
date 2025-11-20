@@ -3,401 +3,349 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Evolution Simulator 🧬</title>
+    <title>Route Optimizer 🚚</title>
     <style>
         body {
             margin: 0;
-            background: #1a1a1a;
-            color: #fff;
-            font-family: 'Courier New', Courier, monospace;
+            background: #0b0b0b;
+            color: #eee;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
-            touch-action: none; /* Wichtig für Mobile Performance */
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Map Area */
+        #canvas-wrapper {
+            flex-grow: 1;
+            position: relative;
+            background: #111;
+            box-shadow: inset 0 0 50px #000;
         }
         canvas {
             display: block;
             width: 100%;
-            height: 60vh;
+            height: 100%;
+        }
+
+        /* Dashboard */
+        #dashboard {
             background: #222;
-            border-bottom: 2px solid #444;
+            padding: 15px;
+            border-top: 1px solid #333;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            height: auto;
+            z-index: 10;
         }
-        #ui {
+
+        .stat-box {
+            background: #333;
             padding: 10px;
-            height: 40vh;
-            box-sizing: border-box;
-            background: #111;
-            overflow-y: auto;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            color: #aaa;
         }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px;}
-        .highlight { color: #0f0; font-weight: bold; }
+        .stat-val {
+            display: block;
+            font-size: 1.2rem;
+            color: #fff;
+            font-weight: bold;
+            margin-top: 2px;
+            font-family: monospace;
+        }
+        
         button {
-            width: 100%; padding: 15px; margin-top: 10px;
-            background: #006600; color: white; border: none; font-size: 16px;
-            cursor: pointer; border-radius: 5px;
+            grid-column: span 2;
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 5px;
         }
-        #gen-info { font-size: 12px; color: #666; margin-top: 5px; }
+        button:active { background: #005f9e; }
+        
+        /* Overlay Text */
+        #status-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            pointer-events: none;
+            font-family: monospace;
+            color: #0f0;
+            font-size: 12px;
+            text-shadow: 1px 1px 2px #000;
+        }
     </style>
 </head>
 <body>
 
-<canvas id="world"></canvas>
+<div id="canvas-wrapper">
+    <canvas id="map"></canvas>
+    <div id="status-overlay">System: INITIALIZING...</div>
+</div>
 
-<div id="ui">
-    <div class="stat-row">
-        <span>Generation:</span>
-        <span id="val-gen" class="highlight">0</span>
+<div id="dashboard">
+    <div class="stat-box">
+        Aktuelle Distanz
+        <span class="stat-val" id="val-dist" style="color: #f44336;">---</span>
     </div>
-    <div class="stat-row">
-        <span>Zeit (dieser Run):</span>
-        <span id="val-time">0</span>
+    <div class="stat-box">
+        Berechnungen
+        <span class="stat-val" id="val-iter">0</span>
     </div>
-    <div class="stat-row">
-        <span>Rekord-Distanz:</span>
-        <span id="val-record" style="color: gold;">0m</span>
+    <div class="stat-box">
+        Beste Distanz
+        <span class="stat-val" id="val-best" style="color: #4caf50;">---</span>
     </div>
-    <div class="stat-row">
-        <span>Population:</span>
-        <span id="val-pop">20</span>
+    <div class="stat-box">
+        Temperatur
+        <span class="stat-val" id="val-temp">---</span>
     </div>
     
-    <div id="gen-info">System bereit. Starte Simulation...</div>
-    
-    <button onclick="toggleSim()" id="btn-sim">⏸ Pause / Start</button>
-    <button onclick="resetSim()" style="background:#555; margin-top:5px;">🔄 Reset (Ursuppe)</button>
+    <button onclick="resetSolver()">🎲 Neue Städte & Start</button>
 </div>
 
 <script>
     // --- KONFIGURATION ---
-    const POPULATION_SIZE = 20;
-    const MUTATION_RATE = 0.05; // Wie stark verändert sich ein Kind?
-    const SECONDS_PER_GEN = 10; // Wie lange haben sie Zeit zum Laufen?
-    const GRAVITY = 0.5;
-    const FRICTION = 0.98;
-    const BOUNCE = 0.7;
-
-    // --- SETUP ---
-    const canvas = document.getElementById('world');
+    const CITY_COUNT = 60; // Anzahl der Lieferadressen
+    // Wenn dein Handy sehr stark ist, erhöhe auf 100 oder 200
+    
+    const canvas = document.getElementById('map');
     const ctx = canvas.getContext('2d');
+    
     let width, height;
+    let cities = [];
+    let currentOrder = [];
+    let bestOrder = [];
+    let bestDistance = Infinity;
+    
+    let iterations = 0;
+    let temperature = 1000;
+    let coolingRate = 0.995;
+    let animationFrame;
+    let isRunning = false;
 
-    // Resize Handler
+    // --- HELPER FUNCTIONS ---
+
     function resize() {
-        width = canvas.width = window.innerWidth;
-        height = canvas.height = window.innerHeight * 0.6;
+        width = canvas.width = canvas.offsetWidth;
+        height = canvas.height = canvas.offsetHeight;
     }
     window.addEventListener('resize', resize);
     resize();
 
-    // --- PHYSIK ENGINE (Verlet Integration) ---
-    class Point {
-        constructor(x, y) {
-            this.x = x;
-            this.y = y;
-            this.oldx = x;
-            this.oldy = y;
-            this.pinned = false;
-        }
-        update() {
-            if (this.pinned) return;
-            const vx = (this.x - this.oldx) * FRICTION;
-            const vy = (this.y - this.oldy) * FRICTION;
-            this.oldx = this.x;
-            this.oldy = this.y;
-            this.x += vx;
-            this.y += vy;
-            this.y += GRAVITY;
-            
-            // Bodenkollision
-            if (this.y > height) {
-                this.y = height;
-                this.oldy = this.y + vy * BOUNCE;
-            }
-            // Wand links (Startlinie)
-            if (this.x < 0) {
-                this.x = 0;
-                this.oldx = this.x + vx * BOUNCE;
-            }
-        }
+    // Berechnet Distanz zwischen zwei Punkten
+    function dist(a, b) {
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        return Math.sqrt(dx * dx + dy * dy);
     }
 
-    class Stick {
-        constructor(p1, p2, length) {
-            this.p1 = p1;
-            this.p2 = p2;
-            this.length = length || Math.hypot(p1.x - p2.x, p1.y - p2.y);
-            // Muskel-Eigenschaften
-            this.isMuscle = Math.random() > 0.5; // 50% Chance ein Muskel zu sein
-            this.freq = Math.random() * 0.2 + 0.05; // Geschwindigkeit
-            this.phase = Math.random() * Math.PI * 2; // Timing
-            this.amp = Math.random() * 0.3; // Wie stark zieht er sich zusammen?
+    // Berechnet die Gesamtlänge einer Route
+    function calcTotalDistance(order) {
+        let sum = 0;
+        for (let i = 0; i < order.length - 1; i++) {
+            const cityA = cities[order[i]];
+            const cityB = cities[order[i + 1]];
+            sum += dist(cityA, cityB);
         }
-        update(time) {
-            // Muskelbewegung berechnen
-            let currentLen = this.length;
-            if(this.isMuscle) {
-                currentLen = this.length * (1 + Math.sin(time * this.freq + this.phase) * this.amp);
-            }
+        // Optional: Rückweg zum Start (Rundreise)
+        // sum += dist(cities[order[order.length-1]], cities[order[0]]); 
+        return sum;
+    }
 
-            const dx = this.p2.x - this.p1.x;
-            const dy = this.p2.y - this.p1.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+    // --- ALGORITHMUS (Simulated Annealing) ---
+    // Wir nutzen Hitze-Simulation: Am Anfang darf man Fehler machen (um aus Sackgassen zu kommen),
+    // später wird man strenger und optimiert nur noch Details.
+
+    function solveStep() {
+        // Wir machen mehrere Schritte pro Frame für Speed
+        for(let k=0; k<100; k++) {
+            iterations++;
+
+            // 1. Erstelle eine neue, leicht veränderte Route (Mutation)
+            // Wir nehmen einen Abschnitt und drehen ihn um (besser als simpler Tausch)
+            const newOrder = currentOrder.slice();
             
-            if(dist === 0) return; // Prevent zero division
+            const i = Math.floor(Math.random() * newOrder.length);
+            const j = Math.floor(Math.random() * newOrder.length);
+            
+            const start = Math.min(i, j);
+            const end = Math.max(i, j);
+            
+            // Segment umdrehen (Reverse Swap)
+            // Das entknotet überkreuzte Linien sehr effektiv
+            const segment = newOrder.slice(start, end + 1);
+            const reversedSegment = segment.reverse();
+            newOrder.splice(start, reversedSegment.length, ...reversedSegment);
 
-            const diff = currentLen - dist;
-            const percent = diff / dist / 2;
-            const offsetX = dx * percent;
-            const offsetY = dy * percent;
+            // 2. Vergleichen
+            const currentDist = calcTotalDistance(currentOrder);
+            const newDist = calcTotalDistance(newOrder);
 
-            if (!this.p1.pinned) {
-                this.p1.x -= offsetX;
-                this.p1.y -= offsetY;
-            }
-            if (!this.p2.pinned) {
-                this.p2.x += offsetX;
-                this.p2.y += offsetY;
+            // 3. Entscheiden: Nehmen wir die neue Route?
+            // Wenn sie besser ist: JA.
+            // Wenn sie schlechter ist: VIELLEICHT (abhängig von Temperatur).
+            if (newDist < currentDist) {
+                currentOrder = newOrder;
+                if (newDist < bestDistance) {
+                    bestDistance = newDist;
+                    bestOrder = newOrder.slice();
+                    updateStats(true);
+                }
+            } else {
+                // Wahrscheinlichkeitsrechnung für "schlechten Zug akzeptieren"
+                // e^((current - new) / temperature)
+                const probability = Math.exp((currentDist - newDist) / temperature);
+                if (Math.random() < probability) {
+                    currentOrder = newOrder;
+                }
             }
         }
-        draw() {
+
+        // Abkühlen
+        temperature *= coolingRate;
+        
+        // Wenn zu kalt, Reset der Temperatur (Re-Annealing) um aus lokalen Optima zu kommen,
+        // aber nicht ganz so heiß wie am Anfang.
+        if (temperature < 1) {
+            temperature = 200;
+            // Wir starten wieder beim besten bisherigen Ergebnis
+            currentOrder = bestOrder.slice();
+        }
+
+        draw();
+        updateStats(false);
+        
+        if(isRunning) animationFrame = requestAnimationFrame(solveStep);
+    }
+
+    // --- VISUALISIERUNG ---
+
+    function draw() {
+        // Hintergrund & Fade Effekt
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, width, height);
+
+        // 1. Zeichne die "Aktuelle Test-Route" (dünn, grau)
+        // Damit man sieht, dass gearbeitet wird
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < currentOrder.length - 1; i++) {
+            const a = cities[currentOrder[i]];
+            const b = cities[currentOrder[i+1]];
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+        }
+        ctx.stroke();
+
+        // 2. Zeichne die "Beste Route bisher" (dick, bunt)
+        // Wir machen einen Gradienten, damit man Start und Ende sieht
+        for (let i = 0; i < bestOrder.length - 1; i++) {
+            const a = cities[bestOrder[i]];
+            const b = cities[bestOrder[i+1]];
+            
             ctx.beginPath();
-            ctx.lineWidth = this.isMuscle ? 4 : 1;
-            // Muskeln pulsieren farblich
-            ctx.strokeStyle = this.isMuscle ? `rgba(255, 50, 50, 0.8)` : '#888';
-            ctx.moveTo(this.p1.x, this.p1.y);
-            ctx.lineTo(this.p2.x, this.p2.y);
+            // Farbe verläuft von Grün (Start) nach Blau (Ende)
+            const hue = (i / bestOrder.length) * 180; // 0..180
+            ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+            ctx.lineWidth = 3;
+            
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
             ctx.stroke();
         }
-    }
 
-    // --- KREATUR LOGIK ---
-    class Creature {
-        constructor() {
-            this.points = [];
-            this.sticks = [];
-            this.id = Math.random().toString(36).substr(2, 9);
-            this.fitness = 0;
+        // 3. Zeichne Städte
+        ctx.fillStyle = '#fff';
+        for (let i = 0; i < cities.length; i++) {
+            const c = cities[i];
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, 4, 0, Math.PI * 2);
+            ctx.fill();
         }
-
-        // Erzeugt zufällige DNA
-        randomInit(startX, startY) {
-            // 4 Punkte als Körper
-            this.points.push(new Point(startX, startY));
-            this.points.push(new Point(startX + 30, startY));
-            this.points.push(new Point(startX, startY + 30));
-            this.points.push(new Point(startX + 30, startY + 30));
+        
+        // Start und Ende hervorheben
+        if(bestOrder.length > 0) {
+            const startCity = cities[bestOrder[0]];
+            const endCity = cities[bestOrder[bestOrder.length-1]];
             
-            // Zufällige extra Gliedmaßen
-            const extra = Math.floor(Math.random() * 3);
-            for(let i=0; i<extra; i++) {
-                this.points.push(new Point(startX + Math.random()*60-30, startY + Math.random()*60-30));
-            }
-
-            // Verbinde alle Punkte chaotisch
-            for (let i = 0; i < this.points.length; i++) {
-                for (let j = i + 1; j < this.points.length; j++) {
-                     // Nicht alles verbinden, sonst wird es ein fester Klumpen
-                     if(Math.random() > 0.4) {
-                         this.sticks.push(new Stick(this.points[i], this.points[j]));
-                     }
-                }
-            }
-        }
-
-        // Kopiere DNA von Elternteil (für Evolution)
-        cloneFrom(parent) {
-            // Wir kopieren die Struktur, setzen aber Positionen zurück
-            parent.points.forEach(p => {
-                // Relativ zur Mitte des Elternteils speichern wir die Struktur nicht
-                // Vereinfachung: Wir übernehmen die Stick-Parameter (DNA)
-                this.points.push(new Point(0,0)); // Platzhalter
-            });
+            ctx.fillStyle = '#0f0'; // Start
+            ctx.beginPath(); ctx.arc(startCity.x, startCity.y, 8, 0, Math.PI*2); ctx.fill();
             
-            parent.sticks.forEach((s, i) => {
-                // Indices der Punkte finden
-                const idx1 = parent.points.indexOf(s.p1);
-                const idx2 = parent.points.indexOf(s.p2);
-                
-                // Neuen Stick mit Mutation erstellen
-                const newStick = new Stick(this.points[idx1], this.points[idx2], s.length);
-                
-                // Mutation!
-                if(Math.random() < MUTATION_RATE) newStick.isMuscle = !newStick.isMuscle;
-                if(Math.random() < MUTATION_RATE) newStick.freq += (Math.random()-0.5)*0.1;
-                if(Math.random() < MUTATION_RATE) newStick.amp += (Math.random()-0.5)*0.1;
-                
-                // Vererbung
-                if(Math.random() >= MUTATION_RATE) {
-                    newStick.isMuscle = s.isMuscle;
-                    newStick.freq = s.freq;
-                    newStick.phase = s.phase;
-                    newStick.amp = s.amp;
-                }
-                
-                this.sticks.push(newStick);
+            ctx.fillStyle = '#f00'; // Ende
+            ctx.beginPath(); ctx.arc(endCity.x, endCity.y, 8, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    function updateStats(isNewRecord) {
+        document.getElementById('val-iter').innerText = iterations.toLocaleString();
+        document.getElementById('val-temp').innerText = temperature.toFixed(2) + "°";
+        
+        const distEl = document.getElementById('val-dist');
+        distEl.innerText = Math.floor(calcTotalDistance(currentOrder));
+        
+        const bestEl = document.getElementById('val-best');
+        bestEl.innerText = Math.floor(bestDistance);
+        
+        if(isNewRecord) {
+            bestEl.style.textShadow = "0 0 10px #0f0";
+            setTimeout(() => bestEl.style.textShadow = "none", 200);
+        }
+        
+        document.getElementById('status-overlay').innerText = 
+            `SYS: OPTIMIZING... [NODES: ${CITY_COUNT}]`;
+    }
+
+    // --- INITIALISIERUNG ---
+
+    function resetSolver() {
+        isRunning = false;
+        cancelAnimationFrame(animationFrame);
+        
+        // Neue Städte generieren
+        cities = [];
+        // Etwas Rand lassen
+        const padding = 40;
+        for (let i = 0; i < CITY_COUNT; i++) {
+            cities.push({
+                x: Math.random() * (width - padding * 2) + padding,
+                y: Math.random() * (height - padding * 2) + padding
             });
         }
 
-        resetPosition(x, y) {
-            // Setzt die Punkte zurück an den Start, behält aber die Struktur bei
-            // Einfachheitshalber: Wir spawnen sie leicht versetzt übereinander
-            this.points.forEach((p, i) => {
-                p.x = x + (Math.random()*20);
-                p.y = y + (Math.random()*20);
-                p.oldx = p.x;
-                p.oldy = p.y;
-            });
-        }
-
-        getCenterX() {
-            let sum = 0;
-            this.points.forEach(p => sum += p.x);
-            return sum / this.points.length;
-        }
-
-        draw() {
-            this.sticks.forEach(s => s.draw());
-            this.points.forEach(p => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
-                ctx.fillStyle = '#fff';
-                ctx.fill();
-            });
-        }
-    }
-
-    // --- SIMULATION STATE ---
-    let population = [];
-    let generation = 1;
-    let frameCount = 0;
-    let running = true;
-    let bestDistanceAllTime = 0;
-
-    // Initialisierung
-    function initWorld() {
-        population = [];
-        for(let i=0; i<POPULATION_SIZE; i++) {
-            const c = new Creature();
-            c.randomInit(100, height - 100); // Spawn links
-            population.push(c);
-        }
-    }
-
-    function evolve() {
-        // 1. Bewerten
-        population.forEach(c => {
-            c.fitness = c.getCenterX();
-        });
-
-        // 2. Sortieren (Besten zuerst)
-        population.sort((a, b) => b.fitness - a.fitness);
-
-        // Global Record Update
-        if(population[0].fitness > bestDistanceAllTime) {
-            bestDistanceAllTime = population[0].fitness;
-            document.getElementById('val-record').innerText = Math.floor(bestDistanceAllTime) + "m";
-        }
-
-        // UI Info
-        const winner = population[0];
-        document.getElementById('gen-info').innerHTML = 
-            `Gen ${generation} Ende. <br>Beste: ${Math.floor(winner.fitness)}m. <br>Evolution läuft...`;
-
-        // 3. Selektion (Die untere Hälfte stirbt)
-        const survivors = population.slice(0, POPULATION_SIZE / 2);
-        const newPop = [];
-
-        // 4. Reproduktion
-        // Wir füllen die Population wieder auf, indem wir die Überlebenden kopieren und mutieren
-        while(newPop.length < POPULATION_SIZE) {
-            const parent = survivors[Math.floor(Math.random() * survivors.length)];
-            const child = new Creature();
-            child.cloneFrom(parent); // DNA kopieren & mutieren
-            newPop.push(child);
+        // Order initialisieren
+        currentOrder = [];
+        for (let i = 0; i < cities.length; i++) {
+            currentOrder[i] = i;
         }
         
-        population = newPop;
-        
-        // 5. Reset Position
-        population.forEach(c => c.resetPosition(100, height - 150));
-        
-        generation++;
-        frameCount = 0;
-        document.getElementById('val-gen').innerText = generation;
-    }
-
-    // --- MAIN LOOP ---
-    function loop() {
-        if(!running) {
-            requestAnimationFrame(loop);
-            return;
+        // Einmal zufällig mischen für den Start
+        for (let i = 0; i < currentOrder.length; i++) {
+            const j = Math.floor(Math.random() * currentOrder.length);
+            [currentOrder[i], currentOrder[j]] = [currentOrder[j], currentOrder[i]];
         }
 
-        // Clear
-        ctx.fillStyle = '#222';
-        ctx.fillRect(0, 0, width, height);
+        bestOrder = currentOrder.slice();
+        bestDistance = calcTotalDistance(currentOrder);
         
-        // Grid / Boden zeichnen
-        ctx.strokeStyle = '#333';
-        for(let i=0; i<width; i+=50) {
-            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, height); ctx.stroke();
-        }
-
-        // Update & Draw
-        population.forEach(c => {
-            // Physik mehrfach pro Frame für Stabilität
-            for(let i=0; i<3; i++) {
-                c.points.forEach(p => p.update());
-                c.sticks.forEach(s => s.update(frameCount * 0.1)); // *0.1 als Time Speed
-            }
-            c.draw();
-        });
-
-        // Kamera verfolgt den Besten (Simuliert) -> Wir verschieben einfach den Context nicht,
-        // sondern lassen sie aus dem Bild laufen, damit man sieht wer zurückbleibt.
-        // Aber wir zeichnen einen Marker beim Besten.
+        iterations = 0;
+        temperature = 1000; // Reset Hitze
         
-        // Finde Führenden für Marker
-        let leader = population[0];
-        let maxX = -1;
-        population.forEach(c => {
-            let cx = c.getCenterX();
-            if(cx > maxX) { maxX = cx; leader = c; }
-        });
-        
-        // Leader Marker
-        ctx.fillStyle = 'gold';
-        ctx.beginPath();
-        ctx.moveTo(maxX, leader.points[0].y - 20);
-        ctx.lineTo(maxX - 10, leader.points[0].y - 35);
-        ctx.lineTo(maxX + 10, leader.points[0].y - 35);
-        ctx.fill();
-
-        // UI Stats
-        frameCount++;
-        const timeLeft = (SECONDS_PER_GEN * 60) - frameCount;
-        document.getElementById('val-time').innerText = Math.ceil(timeLeft / 60) + "s";
-
-        if(timeLeft <= 0) {
-            evolve();
-        }
-
-        requestAnimationFrame(loop);
+        isRunning = true;
+        solveStep();
     }
 
-    // --- CONTROLS ---
-    function toggleSim() {
-        running = !running;
-        document.getElementById('btn-sim').innerText = running ? "⏸ Pause" : "▶ Weiter";
-    }
-    function resetSim() {
-        generation = 1;
-        bestDistanceAllTime = 0;
-        frameCount = 0;
-        initWorld();
-    }
-
-    // Start
-    initWorld();
-    loop();
+    // Start beim Laden
+    setTimeout(resetSolver, 500); // Kurz warten für Layout
 
 </script>
 </body>
