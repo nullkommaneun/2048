@@ -3,501 +3,292 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2048 AI Learner</title>
+    <title>KI Pet Experiment</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #faf8ef;
-            color: #776e65;
-            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #222;
+            color: #eee;
             display: flex;
             flex-direction: column;
             align-items: center;
-            touch-action: manipulation; 
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
         }
 
-        h1 { margin: 10px 0; font-size: 24px; }
-
-        .stats-panel {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 10px;
-            background: #bbada0;
-            padding: 10px;
-            border-radius: 6px;
-            color: white;
-            font-weight: bold;
+        /* --- Game Area --- */
+        #pet-container {
+            font-size: 100px;
+            margin: 50px 0;
+            cursor: pointer;
+            transition: transform 0.2s;
+            user-select: none;
         }
-        .stat-box { text-align: center; }
-        .stat-label { font-size: 10px; text-transform: uppercase; color: #eee4da; }
-        .stat-value { font-size: 18px; }
+        #pet-container:active { transform: scale(0.9); }
 
-        .grid-container {
-            background-color: #bbada0;
-            padding: 10px;
-            border-radius: 6px;
+        .controls {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 10px;
             width: 100%;
-            max-width: 350px;
-            aspect-ratio: 1;
-        }
-
-        .cell {
-            background-color: rgba(238, 228, 218, 0.35);
-            border-radius: 3px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            font-weight: bold;
-            color: #776e65;
-            position: relative;
-        }
-
-        /* Tile Colors based on value */
-        .cell[data-val="2"] { background: #eee4da; }
-        .cell[data-val="4"] { background: #ede0c8; }
-        .cell[data-val="8"] { background: #f2b179; color: #f9f6f2; }
-        .cell[data-val="16"] { background: #f59563; color: #f9f6f2; }
-        .cell[data-val="32"] { background: #f67c5f; color: #f9f6f2; }
-        .cell[data-val="64"] { background: #f65e3b; color: #f9f6f2; }
-        .cell[data-val="128"] { background: #edcf72; color: #f9f6f2; font-size: 20px; }
-        .cell[data-val="256"] { background: #edcc61; color: #f9f6f2; font-size: 20px; }
-        .cell[data-val="512"] { background: #edc850; color: #f9f6f2; font-size: 20px; }
-        .cell[data-val="1024"] { background: #edc53f; color: #f9f6f2; font-size: 16px; }
-        .cell[data-val="2048"] { background: #edc22e; color: #f9f6f2; font-size: 16px; }
-        
-        .controls {
-            margin-top: 15px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
+            max-width: 400px;
+            margin-bottom: 30px;
         }
 
         button {
-            background-color: #8f7a66;
+            background: #444;
             color: white;
-            border: none;
-            padding: 12px 16px;
-            border-radius: 4px;
-            font-size: 14px;
+            border: 1px solid #666;
+            padding: 15px;
+            font-size: 16px;
             cursor: pointer;
-            font-weight: bold;
+            border-radius: 8px;
         }
-        button:active { transform: scale(0.96); }
-        button.stop { background-color: #e95624; }
-        button.train { background-color: #edc22e; color: #776e65; }
+        button:active { background: #666; }
 
-        #brain-monitor {
-            margin-top: 20px;
+        /* --- Stats Bars --- */
+        .stats {
             width: 100%;
-            max-width: 350px;
-            font-size: 12px;
-            background: #eee4da;
-            padding: 10px;
-            border-radius: 5px;
+            max-width: 400px;
+            margin-bottom: 20px;
         }
-        .weight-row { display: flex; justify-content: space-between; border-bottom: 1px solid #ccc; padding: 2px 0; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .bar-bg { width: 60%; background: #333; height: 10px; border-radius: 5px; overflow: hidden;}
+        .bar-fill { height: 100%; background: #4caf50; width: 100%; transition: width 0.5s; }
 
-        #debug-console {
-            margin-top: 20px;
+        /* --- Custom Debugger (User Constraint) --- */
+        #debugger {
             width: 100%;
-            max-width: 350px;
-            height: 150px;
-            background-color: #333;
+            max-width: 400px;
+            background: #000;
+            border: 1px solid #0f0;
             color: #0f0;
-            font-family: monospace;
-            font-size: 11px;
-            padding: 8px;
+            font-size: 12px;
+            padding: 10px;
+            height: 200px;
             overflow-y: auto;
-            border-radius: 5px;
+            font-family: monospace;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+            border-radius: 4px;
         }
+        .debug-line { margin-bottom: 4px; border-bottom: 1px solid #111; }
+        .highlight { color: #fff; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h1>2048 AI Lab</h1>
-    
-    <div class="stats-panel">
-        <div class="stat-box">
-            <div class="stat-label">Score</div>
-            <div class="stat-value" id="score-display">0</div>
+    <h1>Dein KI-Experiment</h1>
+
+    <div class="stats">
+        <div class="stat-row">
+            <span>Hunger</span>
+            <div class="bar-bg"><div class="bar-fill" id="bar-hunger"></div></div>
         </div>
-        <div class="stat-box">
-            <div class="stat-label">Max Tile</div>
-            <div class="stat-value" id="max-tile-display">0</div>
-        </div>
-        <div class="stat-box">
-            <div class="stat-label">Generation</div>
-            <div class="stat-value" id="gen-display">0</div>
+        <div class="stat-row">
+            <span>Spaß</span>
+            <div class="bar-bg"><div class="bar-fill" id="bar-fun"></div></div>
         </div>
     </div>
 
-    <div class="grid-container" id="grid"></div>
+    <div id="pet-container">🥚</div>
+    <div id="speech-bubble" style="min-height: 20px; color: #aaa; margin-bottom: 20px; font-style: italic;">...</div>
 
     <div class="controls">
-        <button onclick="resetGame()">Neues Spiel</button>
-        <button onclick="toggleAutoPlay()" id="btn-play">▶ Auto Play</button>
-        <button class="train" onclick="toggleTraining()" id="btn-train">⚡ Trainieren</button>
+        <button onclick="interact('feed')">🍖 Füttern</button>
+        <button onclick="interact('play')">🎾 Spielen</button>
+        <button onclick="interact('scold')">🚫 Schimpfen</button>
     </div>
 
-    <div id="brain-monitor">
-        <strong>Aktuelles KI Gehirn (Gewichte):</strong>
-        <div class="weight-row"><span>Leere Felder:</span> <span id="w-empty">0</span></div>
-        <div class="weight-row"><span>Monotonie:</span> <span id="w-mono">0</span></div>
-        <div class="weight-row"><span>Smoothness:</span> <span id="w-smooth">0</span></div>
-        <div class="weight-row"><span>Max Tile:</span> <span id="w-max">0</span></div>
-        <div style="margin-top:5px; font-size:10px; color:#776e65;">
-            Status: <span id="ai-status">Warte auf Start...</span>
-        </div>
-    </div>
+    <h3>Brain Log (Debugger)</h3>
+    <div id="debugger"></div>
+    <button onclick="resetBrain()" style="margin-top:10px; background:#500; font-size: 12px; padding: 5px;">Gehirn löschen (Reset)</button>
 
-    <div id="debug-console">System ready.<br></div>
+<script>
+    // --- Konfiguration ---
+    const ACTIONS = ['neutral', 'cry', 'angry', 'dance', 'sleep'];
+    const STATES = ['normal', 'hungry', 'bored'];
+    
+    // Das Q-Table "Gehirn". Struktur: brain[State][Action] = Score
+    let brain = JSON.parse(localStorage.getItem('petBrain')) || {};
 
-    <script>
-        // --- 1. Debugger ---
-        function log(msg) {
-            const consoleEl = document.getElementById('debug-console');
-            // Begrenzen auf die letzten 50 Zeilen für Performance
-            if (consoleEl.childElementCount > 50) consoleEl.removeChild(consoleEl.firstChild);
-            
-            const time = new Date().toLocaleTimeString().split(' ')[0];
-            const span = document.createElement('div');
-            span.innerHTML = `[${time}] ${msg}`;
-            consoleEl.appendChild(span);
-            consoleEl.scrollTop = consoleEl.scrollHeight;
-        }
+    // Pet Zustand
+    let petState = {
+        hunger: 0, // 0 = satt, 100 = verhungert
+        boredom: 0,
+        currentMood: 'normal',
+        lastActionTaken: 'neutral'
+    };
 
-        // --- 2. Game Engine ---
-        let grid = [];
-        let score = 0;
-        let gameActive = true;
+    // Initialisierung des Gehirns, falls leer
+    STATES.forEach(state => {
+        if (!brain[state]) brain[state] = {};
+        ACTIONS.forEach(action => {
+            if (brain[state][action] === undefined) brain[state][action] = 0; // Startwert 0
+        });
+    });
 
-        function initGrid() {
-            grid = Array(4).fill().map(() => Array(4).fill(0));
-            score = 0;
-            gameActive = true;
-            addRandomTile();
-            addRandomTile();
-            updateUI();
-        }
+    // --- Core Engine ---
 
-        function addRandomTile() {
-            let empty = [];
-            for(let r=0; r<4; r++) 
-                for(let c=0; c<4; c++) 
-                    if(grid[r][c] === 0) empty.push({r,c});
-            
-            if(empty.length > 0) {
-                let {r, c} = empty[Math.floor(Math.random() * empty.length)];
-                grid[r][c] = Math.random() < 0.9 ? 2 : 4;
-            }
-        }
-
-        // Klonen und Rotieren für Logik-Vereinfachung
-        const clone = (g) => g.map(row => [...row]);
-        const rotateLeft = (g) => {
-            let n = g.length;
-            let res = Array(n).fill().map(() => Array(n).fill(0));
-            for(let r=0; r<n; r++) for(let c=0; c<n; c++) res[n-1-c][r] = g[r][c];
-            return res;
-        };
-
-        function moveLeft(g) {
-            let moved = false;
-            let pts = 0;
-            let newGrid = g.map(row => {
-                let arr = row.filter(v => v); // Nullen raus
-                for(let i=0; i<arr.length-1; i++) {
-                    if(arr[i] === arr[i+1]) {
-                        arr[i] *= 2;
-                        pts += arr[i];
-                        arr.splice(i+1, 1);
-                        moved = true; // Merge ist Bewegung
-                    }
-                }
-                while(arr.length < 4) arr.push(0);
-                if(arr.toString() !== row.toString()) moved = true;
-                return arr;
-            });
-            return { grid: newGrid, score: pts, moved };
-        }
-
-        // Globale Move Funktion
-        // 0:UP, 1:RIGHT, 2:DOWN, 3:LEFT
-        function makeMove(simGrid, dir) {
-            let temp = clone(simGrid);
-            // Rotieren um alles als "Left" zu behandeln
-            // UP(0)->3 Rots, RIGHT(1)->2 Rots, DOWN(2)->1 Rot, LEFT(3)->0 Rots
-            let rots = (4 - dir + 3) % 4; 
-            for(let i=0; i<rots; i++) temp = rotateLeft(temp);
-            
-            let res = moveLeft(temp);
-            
-            // Zurück rotieren
-            let back = (4 - rots) % 4;
-            for(let i=0; i<back; i++) res.grid = rotateLeft(res.grid);
-
-            return res;
-        }
-
-        function applyMove(dir) {
-            if(!gameActive) return false;
-            let res = makeMove(grid, dir);
-            if(res.moved) {
-                grid = res.grid;
-                score += res.score;
-                addRandomTile();
-                updateUI();
-                
-                // Check Game Over (Simpel)
-                let possible = false;
-                for(let d=0; d<4; d++) if(makeMove(grid, d).moved) possible = true;
-                if(!possible) {
-                    gameActive = false;
-                    // log("Game Over. Score: " + score);
-                }
-                return true;
-            }
-            return false;
-        }
-
-        // --- 3. AI Logic (Learning) ---
+    function log(msg, type='info') {
+        const d = document.getElementById('debugger');
+        const line = document.createElement('div');
+        line.className = 'debug-line';
+        const time = new Date().toLocaleTimeString().split(' ')[0];
         
-        // Das "Gehirn"
-        let weights = {
-            empty: 50,
-            mono: 10,
-            smooth: 5,
-            max: 5
-        };
+        if(type==='brain') line.style.color = '#0ff';
+        if(type==='reward') line.style.color = '#ff0';
         
-        // Bestes Gehirn bisher
-        let bestWeights = {...weights};
-        let bestScoreAvg = 0;
-        let generation = 1;
+        line.innerHTML = `<span style="opacity:0.5">[${time}]</span> ${msg}`;
+        d.insertBefore(line, d.firstChild);
+    }
 
-        // AI Heuristik berechnen
-        function evaluate(g) {
-            let empty = 0, max = 0, mono = 0, smooth = 0;
-            
-            for(let r=0; r<4; r++) {
-                for(let c=0; c<4; c++) {
-                    if(g[r][c] === 0) empty++;
-                    if(g[r][c] > max) max = g[r][c];
-                    
-                    // Smoothness (weniger Differenz ist gut, also negativ)
-                    if(c<3 && g[r][c+1]) smooth -= Math.abs(g[r][c] - g[r][c+1]);
-                    if(r<3 && g[r+1][c]) smooth -= Math.abs(g[r][c] - g[r+1][c]);
+    function saveBrain() {
+        localStorage.setItem('petBrain', JSON.stringify(brain));
+    }
 
-                    // Monotonie (Zahlen sollen in eine Richtung steigen)
-                    // Vereinfacht: Wir belohnen Ecken
-                }
-            }
-            // Kleiner Trick: Monotonie ist schwer global zu messen, 
-            // oft reicht es, die größte Zahl in einer Ecke zu halten.
-            if (g[3][3] === max) mono += max; 
+    function updateUI() {
+        document.getElementById('bar-hunger').style.width = (100 - petState.hunger) + '%';
+        document.getElementById('bar-fun').style.width = (100 - petState.boredom) + '%';
+        
+        // Farbe der Balken ändern bei Gefahr
+        document.getElementById('bar-hunger').style.background = petState.hunger > 70 ? '#f00' : '#4caf50';
+    }
 
-            return (empty * weights.empty) + 
-                   (mono * weights.mono) + 
-                   (smooth * weights.smooth) + 
-                   (max * weights.max);
-        }
+    // Entscheidungsfindung (Epsilon-Greedy Policy)
+    function decideAction() {
+        // 1. Bestimme aktuellen State (vereinfacht)
+        let currentState = 'normal';
+        if (petState.hunger > 60) currentState = 'hungry';
+        else if (petState.boredom > 60) currentState = 'bored';
+        
+        petState.currentMood = currentState;
 
-        // Expectimax Tiefe 1 für Performance während Training
-        function getBestMove(g) {
+        // 2. Wähle Aktion
+        // 20% Chance auf Zufall (Exploration), 80% das Beste tun (Exploitation)
+        let chosenAction;
+        let method = 'Exploit';
+
+        if (Math.random() < 0.2) {
+            chosenAction = ACTIONS[Math.floor(Math.random() * ACTIONS.length)];
+            method = 'Explore (Zufall)';
+        } else {
+            // Suche Aktion mit höchstem Score im aktuellen State
             let bestScore = -Infinity;
-            let bestDir = -1;
+            let bestActions = [];
             
-            // Wir prüfen alle 4 Züge
-            for(let d=0; d<4; d++) {
-                let res = makeMove(g, d);
-                if(!res.moved) continue;
-                
-                // Bewertung des Resultats
-                let val = evaluate(res.grid);
-                if(val > bestScore) {
-                    bestScore = val;
-                    bestDir = d;
+            for (const action of ACTIONS) {
+                const score = brain[currentState][action];
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestActions = [action];
+                } else if (score === bestScore) {
+                    bestActions.push(action);
                 }
             }
-            // Wenn kein logischer Zug gefunden, zufall (Verzweiflung)
-            if(bestDir === -1) bestDir = Math.floor(Math.random()*4);
-            return bestDir;
+            chosenAction = bestActions[Math.floor(Math.random() * bestActions.length)];
         }
 
-        // --- 4. Loop & Controls ---
+        petState.lastActionTaken = chosenAction;
+        renderPet(chosenAction);
         
-        let autoPlayInterval = null;
-        let trainingActive = false;
+        log(`State: <b>${currentState}</b> -> Action: <b>${chosenAction}</b> (${method})`, 'brain');
+    }
 
-        function toggleAutoPlay() {
-            if(trainingActive) toggleTraining(); // Stop training if playing
-            
-            if(autoPlayInterval) {
-                clearInterval(autoPlayInterval);
-                autoPlayInterval = null;
-                document.getElementById('btn-play').innerText = "▶ Auto Play";
-                document.getElementById('ai-status').innerText = "Pausiert.";
+    function renderPet(action) {
+        const el = document.getElementById('pet-container');
+        const bubble = document.getElementById('speech-bubble');
+        let emoji = '😐';
+        let text = '';
+
+        switch(action) {
+            case 'neutral': emoji = '😐'; text = "*starrt*"; break;
+            case 'cry': emoji = '🥺'; text = "*wimmert*"; break;
+            case 'angry': emoji = '😠'; text = "*grummelt*"; break;
+            case 'dance': emoji = '💃'; text = "*tanzt*"; break;
+            case 'sleep': emoji = '😴'; text = "*schnarcht*"; break;
+        }
+        el.textContent = emoji;
+        bubble.textContent = text;
+    }
+
+    // --- User Interaction & Learning ---
+
+    function interact(type) {
+        let reward = 0;
+        let feedback = "";
+
+        // Logik: Was war "gut"?
+        // Wenn das Pet Hunger hatte (State: hungry) und 'cry' oder 'angry' gezeigt hat,
+        // und der User 'feed' drückt -> Das war erfolgreich!
+        
+        if (type === 'feed') {
+            petState.hunger = Math.max(0, petState.hunger - 30);
+            if (petState.currentMood === 'hungry') {
+                reward = 1; 
+                feedback = "Gut gemacht! Futter war nötig.";
             } else {
-                document.getElementById('btn-play').innerText = "⏹ Stopp";
-                document.getElementById('ai-status').innerText = "Spiele mit aktuellen Gewichten...";
-                if(!gameActive) initGrid();
-                autoPlayInterval = setInterval(() => {
-                    if(!gameActive) {
-                        setTimeout(() => initGrid(), 1000); // Restart delay
-                        return;
-                    }
-                    let move = getBestMove(grid);
-                    applyMove(move);
-                }, 100); // Speed
+                reward = -0.5; // Überfüttern ist schlecht
+                feedback = "War nicht hungrig. (Bestrafung)";
             }
-        }
-
-        async function toggleTraining() {
-            if(autoPlayInterval) toggleAutoPlay();
-
-            if(trainingActive) {
-                trainingActive = false;
-                document.getElementById('btn-train').innerText = "⚡ Trainieren";
-                document.getElementById('ai-status').innerText = "Training gestoppt.";
-                return;
-            }
-
-            trainingActive = true;
-            document.getElementById('btn-train').innerText = "⏹ Stop Training";
-            document.getElementById('ai-status').innerText = "Training läuft (Mutation & Test)...";
-            log("Training gestartet...");
-
-            // Training Loop (Asynchron damit UI nicht friert)
-            while(trainingActive) {
-                // 1. Mutieren (Verändere Gewichte leicht zufällig)
-                let oldWeights = {...weights};
-                
-                // Wähle zufällig einen Parameter zum Ändern
-                let keys = Object.keys(weights);
-                let key = keys[Math.floor(Math.random() * keys.length)];
-                let mutation = (Math.random() - 0.5) * 10; // +/- 5 Änderung
-                weights[key] += mutation;
-
-                updateBrainUI();
-
-                // 2. Testen (Spiele 1 schnelles Spiel im Kopf)
-                let testScore = playSimulation();
-
-                // 3. Bewerten
-                // Wenn Score besser (oder gleich gut) ist, behalte Mutation.
-                // Wir nutzen einen gleitenden Durchschnitt, um Glückstreffer zu filtern
-                if(testScore >= bestScoreAvg) {
-                    bestScoreAvg = (bestScoreAvg * 0.9) + (testScore * 0.1);
-                    bestWeights = {...weights}; // Speichern
-                    log(`Gen ${generation}: Verbessert! (${key}: ${weights[key].toFixed(1)}) -> Score: ${testScore}`);
-                } else {
-                    // Schlechter? Rollback!
-                    weights = {...oldWeights};
-                    // Kleine Chance (5%), schlechte Mutation trotzdem zu behalten (gegen lokale Maxima)
-                    if(Math.random() < 0.05) {
-                        log(`Gen ${generation}: Zufallsmutation akzeptiert.`);
-                    }
-                }
-
-                generation++;
-                document.getElementById('gen-display').innerText = generation;
-                
-                // UI Update Break (damit Browser reagiert)
-                await new Promise(r => setTimeout(r, 5));
-            }
-        }
-
-        function playSimulation() {
-            // Simuliert ein komplettes Spiel ohne Grafik
-            let simGrid = Array(4).fill().map(() => Array(4).fill(0));
-            // Start Setup
-            let empty = [];
-            for(let i=0; i<16; i++) empty.push(i);
-            let p1 = empty.splice(Math.floor(Math.random()*empty.length), 1)[0];
-            let p2 = empty.splice(Math.floor(Math.random()*empty.length), 1)[0];
-            simGrid[Math.floor(p1/4)][p1%4] = 2;
-            simGrid[Math.floor(p2/4)][p2%4] = 2;
-
-            let simScore = 0;
-            let simActive = true;
-            let moves = 0;
-
-            while(simActive && moves < 2000) { // Safety Limit
-                let bestDir = -1; 
-                let bestVal = -Infinity;
-
-                // Mini-Expectimax für Simulation
-                for(let d=0; d<4; d++) {
-                    let res = makeMove(simGrid, d);
-                    if(res.moved) {
-                        let val = evaluate(res.grid);
-                        if(val > bestVal) { bestVal = val; bestDir = d; }
-                    }
-                }
-
-                if(bestDir !== -1) {
-                    let res = makeMove(simGrid, bestDir);
-                    simGrid = res.grid;
-                    simScore += res.score;
-                    
-                    // Random Tile logic (simulation)
-                    let simEmpty = [];
-                    for(let r=0; r<4; r++) for(let c=0; c<4; c++) if(simGrid[r][c]===0) simEmpty.push({r,c});
-                    if(simEmpty.length > 0) {
-                        let {r, c} = simEmpty[Math.floor(Math.random()*simEmpty.length)];
-                        simGrid[r][c] = Math.random() < 0.9 ? 2 : 4;
-                    } else {
-                        simActive = false; 
-                    }
-                } else {
-                    simActive = false;
-                }
-                moves++;
-            }
-            return simScore;
-        }
-
-        // UI Helper
-        const gridEl = document.getElementById('grid');
-        function updateUI() {
-            gridEl.innerHTML = '';
-            let maxVal = 0;
-            for(let r=0; r<4; r++) {
-                for(let c=0; c<4; c++) {
-                    let val = grid[r][c];
-                    if(val > maxVal) maxVal = val;
-                    let cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.dataset.val = val;
-                    cell.innerText = val > 0 ? val : '';
-                    gridEl.appendChild(cell);
-                }
-            }
-            document.getElementById('score-display').innerText = score;
-            document.getElementById('max-tile-display').innerText = maxVal;
         }
         
-        function resetGame() {
-            initGrid();
-            log("Spiel zurückgesetzt.");
+        if (type === 'play') {
+            petState.boredom = Math.max(0, petState.boredom - 30);
+            if (petState.currentMood === 'bored') {
+                reward = 1;
+                feedback = "Juhu! Spielen war nötig.";
+            } else {
+                reward = 0.1; // Spielen ist meistens okay
+                feedback = "Gespielt.";
+            }
         }
 
-        function updateBrainUI() {
-            document.getElementById('w-empty').innerText = weights.empty.toFixed(2);
-            document.getElementById('w-mono').innerText = weights.mono.toFixed(2);
-            document.getElementById('w-smooth').innerText = weights.smooth.toFixed(2);
-            document.getElementById('w-max').innerText = weights.max.toFixed(2);
+        if (type === 'scold') {
+            reward = -2; // Starke Bestrafung für das aktuelle Verhalten
+            feedback = "Du schimpfst.";
         }
 
-        initGrid();
-        updateBrainUI();
+        // LERNEN (Q-Learning Update Rule)
+        // Neuer Wert = Alter Wert + Lernrate * (Reward - Alter Wert)
+        const lr = 0.5; // Lernrate
+        const oldScore = brain[petState.currentMood][petState.lastActionTaken];
+        brain[petState.currentMood][petState.lastActionTaken] += lr * (reward - oldScore); // Update simplified
 
-    </script>
+        saveBrain();
+        updateUI();
+        
+        log(`Interaction: ${type} | Reward: ${reward} | Brain updated!`, 'reward');
+        log(`New Score for [${petState.currentMood}][${petState.lastActionTaken}] = ${brain[petState.currentMood][petState.lastActionTaken].toFixed(2)}`);
+        
+        // Sofort neu entscheiden
+        decideAction();
+    }
+
+    function resetBrain() {
+        localStorage.removeItem('petBrain');
+        location.reload();
+    }
+
+    // Game Loop (Zeit vergeht)
+    setInterval(() => {
+        // Bedürfnisse steigen
+        petState.hunger = Math.min(100, petState.hunger + 2); // +2 pro Tick
+        petState.boredom = Math.min(100, petState.boredom + 3);
+
+        updateUI();
+
+        // Alle 5 Ticks eine neue Entscheidung treffen, wenn nichts passiert
+        if (Math.random() < 0.3) {
+            decideAction();
+        }
+    }, 2000); // Alle 2 Sekunden
+
+    // Start
+    log("System gestartet. Warte auf State...", 'info');
+    decideAction();
+
+</script>
 </body>
 </html>
  
