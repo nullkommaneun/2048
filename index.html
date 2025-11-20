@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KI Pet Experiment</title>
+    <title>KI Mathe Solver</title>
     <style>
         body {
             font-family: 'Courier New', Courier, monospace;
-            background-color: #222;
-            color: #eee;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -17,278 +17,329 @@
             padding: 20px;
         }
 
-        /* --- Game Area --- */
-        #pet-container {
-            font-size: 100px;
-            margin: 50px 0;
-            cursor: pointer;
-            transition: transform 0.2s;
-            user-select: none;
-        }
-        #pet-container:active { transform: scale(0.9); }
-
-        .controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+        /* --- Math Display --- */
+        .math-display {
+            font-size: 28px;
+            margin: 40px 0;
+            padding: 20px;
+            background: #2d2d2d;
+            border-radius: 10px;
+            border-left: 5px solid #00bcd4;
+            display: flex;
             gap: 10px;
-            width: 100%;
-            max-width: 400px;
-            margin-bottom: 30px;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .variable { color: #ff9800; font-weight: bold; }
+        .constant { color: #00bcd4; }
+        .target { color: #4caf50; font-weight: bold;}
+        .current-val { color: #aaa; font-size: 0.8em; margin-top: 5px; display: block; text-align: center;}
+        
+        .variable-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #333;
+            padding: 5px 10px;
+            border-radius: 5px;
+            min-width: 40px;
         }
 
-        button {
-            background: #444;
-            color: white;
-            border: 1px solid #666;
-            padding: 15px;
-            font-size: 16px;
-            cursor: pointer;
-            border-radius: 8px;
-        }
-        button:active { background: #666; }
-
-        /* --- Stats Bars --- */
-        .stats {
-            width: 100%;
-            max-width: 400px;
+        /* --- Controls & Stats --- */
+        .controls {
+            display: flex;
+            gap: 10px;
             margin-bottom: 20px;
         }
-        .stat-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-        .bar-bg { width: 60%; background: #333; height: 10px; border-radius: 5px; overflow: hidden;}
-        .bar-fill { height: 100%; background: #4caf50; width: 100%; transition: width 0.5s; }
-
-        /* --- Custom Debugger (User Constraint) --- */
-        #debugger {
-            width: 100%;
-            max-width: 400px;
-            background: #000;
-            border: 1px solid #0f0;
-            color: #0f0;
-            font-size: 12px;
-            padding: 10px;
-            height: 200px;
-            overflow-y: auto;
-            font-family: monospace;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
-            border-radius: 4px;
+        button {
+            background: #444; color: white; border: 1px solid #666;
+            padding: 10px 20px; cursor: pointer; border-radius: 5px;
         }
-        .debug-line { margin-bottom: 4px; border-bottom: 1px solid #111; }
-        .highlight { color: #fff; font-weight: bold; }
+        button:active { background: #666; }
+        button.primary { background: #00bcd4; border-color: #00bcd4; color: #000; font-weight: bold; }
+
+        .stats { width: 100%; max-width: 500px; margin-bottom: 20px; }
+        .bar-bg { width: 100%; background: #333; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 5px;}
+        .bar-fill { height: 100%; background: #ff9800; width: 0%; transition: width 0.2s; }
+
+        /* --- Debugger --- */
+        #debugger {
+            width: 100%; max-width: 500px; background: #000; 
+            border: 1px solid #333; color: #0f0; font-size: 11px; 
+            padding: 10px; height: 250px; overflow-y: auto; 
+            font-family: monospace; border-radius: 4px;
+        }
+        .debug-line { margin-bottom: 2px; border-bottom: 1px solid #111; display: flex; gap: 10px;}
+        .ts { opacity: 0.5; min-width: 60px; }
     </style>
 </head>
 <body>
 
-    <h1>Dein KI-Experiment</h1>
+    <h1>KI Gleichungs-Löser</h1>
+    <p style="color:#888; font-size: 0.9em;">Ziel: Finde x und y, damit die Gleichung stimmt.</p>
+
+    <div class="math-display" id="equation-container">
+        <span class="constant" id="coeff-x">3</span>
+        <span>&middot;</span>
+        <div class="variable-box">
+            <span class="variable" id="var-x">0</span>
+            <span class="current-val">x</span>
+        </div>
+        <span>+</span>
+        <span class="constant" id="coeff-y">5</span>
+        <span>&middot;</span>
+        <div class="variable-box">
+            <span class="variable" id="var-y">0</span>
+            <span class="current-val">y</span>
+        </div>
+        <span>=</span>
+        <div style="display:flex; flex-direction:column; align-items:center;">
+            <span class="target" id="target-val">47</span>
+            <span class="current-val" id="current-sum" style="color: #f44336;">(0)</span>
+        </div>
+    </div>
 
     <div class="stats">
-        <div class="stat-row">
-            <span>Hunger</span>
-            <div class="bar-bg"><div class="bar-fill" id="bar-hunger"></div></div>
+        <div style="display:flex; justify-content:space-between;">
+            <span>Nähe zum Ziel (Fehler minimieren)</span>
+            <span id="error-display">Fehler: 47</span>
         </div>
-        <div class="stat-row">
-            <span>Spaß</span>
-            <div class="bar-bg"><div class="bar-fill" id="bar-fun"></div></div>
-        </div>
+        <div class="bar-bg"><div class="bar-fill" id="bar-proximity"></div></div>
     </div>
-
-    <div id="pet-container">🥚</div>
-    <div id="speech-bubble" style="min-height: 20px; color: #aaa; margin-bottom: 20px; font-style: italic;">...</div>
 
     <div class="controls">
-        <button onclick="interact('feed')">🍖 Füttern</button>
-        <button onclick="interact('play')">🎾 Spielen</button>
-        <button onclick="interact('scold')">🚫 Schimpfen</button>
+        <button class="primary" onclick="startStop()" id="btn-toggle">▶ Start Lernen</button>
+        <button onclick="newEquation()">🎲 Neue Gleichung</button>
+        <button onclick="resetBrain()">🧠 Gehirn löschen</button>
     </div>
 
-    <h3>Brain Log (Debugger)</h3>
     <div id="debugger"></div>
-    <button onclick="resetBrain()" style="margin-top:10px; background:#500; font-size: 12px; padding: 5px;">Gehirn löschen (Reset)</button>
 
 <script>
-    // --- Konfiguration ---
-    const ACTIONS = ['neutral', 'cry', 'angry', 'dance', 'sleep'];
-    const STATES = ['normal', 'hungry', 'bored'];
-    
-    // Das Q-Table "Gehirn". Struktur: brain[State][Action] = Score
-    let brain = JSON.parse(localStorage.getItem('petBrain')) || {};
-
-    // Pet Zustand
-    let petState = {
-        hunger: 0, // 0 = satt, 100 = verhungert
-        boredom: 0,
-        currentMood: 'normal',
-        lastActionTaken: 'neutral'
+    // --- Globale Variablen ---
+    // Wir definieren eine lineare Gleichung: Ax + By = Target
+    let eq = {
+        A: 3,
+        B: 5,
+        Target: 47
     };
 
-    // Initialisierung des Gehirns, falls leer
-    STATES.forEach(state => {
-        if (!brain[state]) brain[state] = {};
-        ACTIONS.forEach(action => {
-            if (brain[state][action] === undefined) brain[state][action] = 0; // Startwert 0
-        });
-    });
+    // Zustand der KI (Aktuelle Werte für x und y)
+    // Wir begrenzen den Suchraum auf 0-15, damit es visualisierbar bleibt
+    let state = { x: 0, y: 0 };
+    
+    let isRunning = false;
+    let timer = null;
+    let iteration = 0;
 
-    // --- Core Engine ---
+    // Das Q-Learning "Gehirn"
+    // Map: "x,y" -> { "x+": score, "x-": score, "y+": score, "y-": score }
+    let qTable = {};
+    
+    const ACTIONS = ['x+', 'x-', 'y+', 'y-'];
+    const MAX_VAL = 20; // Suchraum Begrenzung
 
-    function log(msg, type='info') {
+    // --- Engine Core ---
+
+    function log(msg, color='#0f0') {
         const d = document.getElementById('debugger');
         const line = document.createElement('div');
         line.className = 'debug-line';
         const time = new Date().toLocaleTimeString().split(' ')[0];
-        
-        if(type==='brain') line.style.color = '#0ff';
-        if(type==='reward') line.style.color = '#ff0';
-        
-        line.innerHTML = `<span style="opacity:0.5">[${time}]</span> ${msg}`;
+        line.innerHTML = `<span class="ts">${time}</span> <span style="color:${color}">${msg}</span>`;
         d.insertBefore(line, d.firstChild);
     }
 
-    function saveBrain() {
-        localStorage.setItem('petBrain', JSON.stringify(brain));
+    // Gleichung berechnen
+    function calculateSum() {
+        return (eq.A * state.x) + (eq.B * state.y);
+    }
+
+    // Neue zufällige Gleichung
+    function newEquation() {
+        // Zufällige Koeffizienten zwischen 1 und 9
+        eq.A = Math.floor(Math.random() * 8) + 2; 
+        eq.B = Math.floor(Math.random() * 8) + 2;
+        
+        // Ein zufälliges "echtes" Ziel generieren, damit es lösbar ist
+        const targetX = Math.floor(Math.random() * 10) + 1;
+        const targetY = Math.floor(Math.random() * 10) + 1;
+        eq.Target = (eq.A * targetX) + (eq.B * targetY);
+
+        // Reset State
+        state.x = 0;
+        state.y = 0;
+        iteration = 0;
+        
+        // UI Updates
+        document.getElementById('coeff-x').innerText = eq.A;
+        document.getElementById('coeff-y').innerText = eq.B;
+        document.getElementById('target-val').innerText = eq.Target;
+        
+        // ACHTUNG: Wir löschen das Gehirn NICHT. 
+        // Die KI muss merken, dass ihr altes Wissen bei der neuen Gleichung evtl. falsch ist!
+        log(`NEUE AUFGABE: ${eq.A}x + ${eq.B}y = ${eq.Target}`, '#fff');
+        updateUI();
     }
 
     function updateUI() {
-        document.getElementById('bar-hunger').style.width = (100 - petState.hunger) + '%';
-        document.getElementById('bar-fun').style.width = (100 - petState.boredom) + '%';
+        const currentSum = calculateSum();
+        const error = Math.abs(eq.Target - currentSum);
         
-        // Farbe der Balken ändern bei Gefahr
-        document.getElementById('bar-hunger').style.background = petState.hunger > 70 ? '#f00' : '#4caf50';
+        document.getElementById('var-x').innerText = state.x;
+        document.getElementById('var-y').innerText = state.y;
+        
+        const sumEl = document.getElementById('current-sum');
+        sumEl.innerText = `(${currentSum})`;
+        sumEl.style.color = error === 0 ? '#4caf50' : '#f44336';
+
+        document.getElementById('error-display').innerText = `Fehler: ${error}`;
+        
+        // Fehler visualisieren (Je kleiner der Fehler, desto voller der Balken)
+        // Max Fehler Annahme ca. 100 für Visualisierung
+        const percentage = Math.max(0, 100 - (error * 2));
+        document.getElementById('bar-proximity').style.width = percentage + '%';
+        document.getElementById('bar-proximity').style.background = error === 0 ? '#00ff00' : '#ff9800';
     }
 
-    // Entscheidungsfindung (Epsilon-Greedy Policy)
-    function decideAction() {
-        // 1. Bestimme aktuellen State (vereinfacht)
-        let currentState = 'normal';
-        if (petState.hunger > 60) currentState = 'hungry';
-        else if (petState.boredom > 60) currentState = 'bored';
+    function getStateKey() {
+        return `${state.x},${state.y}`;
+    }
+
+    function getQ(s, a) {
+        if (!qTable[s]) qTable[s] = {};
+        return qTable[s][a] || 0; // Standardwert 0
+    }
+
+    function setQ(s, a, val) {
+        if (!qTable[s]) qTable[s] = {};
+        qTable[s][a] = val;
+    }
+
+    // Der wichtigste Teil: Der Lernschritt
+    function step() {
+        iteration++;
+        const currentStateKey = getStateKey();
+        const currentSum = calculateSum();
+        const currentError = Math.abs(eq.Target - currentSum);
+
+        // 1. Ist das Problem gelöst?
+        if (currentError === 0) {
+            log(`GELÖST in Iteration ${iteration}! x=${state.x}, y=${state.y}`, '#0ff');
+            stop();
+            return;
+        }
+
+        // 2. Entscheidung treffen (Epsilon-Greedy)
+        // Je länger wir suchen, desto weniger "Zufall" erlauben wir (Decay)
+        let epsilon = Math.max(0.1, 1.0 - (iteration / 100)); 
+        let action;
         
-        petState.currentMood = currentState;
-
-        // 2. Wähle Aktion
-        // 20% Chance auf Zufall (Exploration), 80% das Beste tun (Exploitation)
-        let chosenAction;
-        let method = 'Exploit';
-
-        if (Math.random() < 0.2) {
-            chosenAction = ACTIONS[Math.floor(Math.random() * ACTIONS.length)];
-            method = 'Explore (Zufall)';
+        if (Math.random() < epsilon) {
+            action = ACTIONS[Math.floor(Math.random() * ACTIONS.length)]; // Explore
         } else {
-            // Suche Aktion mit höchstem Score im aktuellen State
-            let bestScore = -Infinity;
-            let bestActions = [];
-            
-            for (const action of ACTIONS) {
-                const score = brain[currentState][action];
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestActions = [action];
-                } else if (score === bestScore) {
-                    bestActions.push(action);
-                }
-            }
-            chosenAction = bestActions[Math.floor(Math.random() * bestActions.length)];
+            // Exploit: Finde Aktion mit höchstem Q-Wert
+            let bestVal = -Infinity;
+            let candidates = [];
+            ACTIONS.forEach(a => {
+                let val = getQ(currentStateKey, a);
+                if (val > bestVal) { bestVal = val; candidates = [a]; }
+                else if (val === bestVal) candidates.push(a);
+            });
+            action = candidates[Math.floor(Math.random() * candidates.length)];
         }
 
-        petState.lastActionTaken = chosenAction;
-        renderPet(chosenAction);
+        // 3. Aktion ausführen (Virtuell)
+        let nextState = { ...state };
+        if (action === 'x+') nextState.x++;
+        if (action === 'x-') nextState.x--;
+        if (action === 'y+') nextState.y++;
+        if (action === 'y-') nextState.y--;
+
+        // Grenzen einhalten (Constraint)
+        if (nextState.x < 0) nextState.x = 0;
+        if (nextState.y < 0) nextState.y = 0;
+        if (nextState.x > MAX_VAL) nextState.x = MAX_VAL;
+        if (nextState.y > MAX_VAL) nextState.y = MAX_VAL;
+
+        // 4. Belohnung berechnen (Reward Function)
+        const nextSum = (eq.A * nextState.x) + (eq.B * nextState.y);
+        const nextError = Math.abs(eq.Target - nextSum);
         
-        log(`State: <b>${currentState}</b> -> Action: <b>${chosenAction}</b> (${method})`, 'brain');
-    }
-
-    function renderPet(action) {
-        const el = document.getElementById('pet-container');
-        const bubble = document.getElementById('speech-bubble');
-        let emoji = '😐';
-        let text = '';
-
-        switch(action) {
-            case 'neutral': emoji = '😐'; text = "*starrt*"; break;
-            case 'cry': emoji = '🥺'; text = "*wimmert*"; break;
-            case 'angry': emoji = '😠'; text = "*grummelt*"; break;
-            case 'dance': emoji = '💃'; text = "*tanzt*"; break;
-            case 'sleep': emoji = '😴'; text = "*schnarcht*"; break;
-        }
-        el.textContent = emoji;
-        bubble.textContent = text;
-    }
-
-    // --- User Interaction & Learning ---
-
-    function interact(type) {
         let reward = 0;
-        let feedback = "";
 
-        // Logik: Was war "gut"?
-        // Wenn das Pet Hunger hatte (State: hungry) und 'cry' oder 'angry' gezeigt hat,
-        // und der User 'feed' drückt -> Das war erfolgreich!
-        
-        if (type === 'feed') {
-            petState.hunger = Math.max(0, petState.hunger - 30);
-            if (petState.currentMood === 'hungry') {
-                reward = 1; 
-                feedback = "Gut gemacht! Futter war nötig.";
-            } else {
-                reward = -0.5; // Überfüttern ist schlecht
-                feedback = "War nicht hungrig. (Bestrafung)";
-            }
+        // Logik: Hat die Aktion den Fehler verringert?
+        if (nextError < currentError) {
+            reward = 1; // Gut! Wärmer!
+        } else if (nextError > currentError) {
+            reward = -2; // Schlecht! Kälter!
+        } else {
+            reward = -0.5; // Stillstand ist Zeitverschwendung
         }
         
-        if (type === 'play') {
-            petState.boredom = Math.max(0, petState.boredom - 30);
-            if (petState.currentMood === 'bored') {
-                reward = 1;
-                feedback = "Juhu! Spielen war nötig.";
-            } else {
-                reward = 0.1; // Spielen ist meistens okay
-                feedback = "Gespielt.";
-            }
-        }
+        // Wenn wir exakt treffen, Jackpot!
+        if (nextError === 0) reward = 20;
 
-        if (type === 'scold') {
-            reward = -2; // Starke Bestrafung für das aktuelle Verhalten
-            feedback = "Du schimpfst.";
-        }
+        // 5. Gehirn updaten (Q-Learning Formel)
+        // NeuerWert = AlterWert + Lernrate * (Reward + Discount * MaxZukunft - AlterWert)
+        const alpha = 0.5; // Lernrate
+        const gamma = 0.8; // Discount factor (Wie wichtig ist die Zukunft?)
+        
+        const nextStateKey = `${nextState.x},${nextState.y}`;
+        
+        // Finde besten Wert vom nächsten State (für die Formel)
+        let maxNextQ = -Infinity;
+        ACTIONS.forEach(a => {
+            let val = getQ(nextStateKey, a);
+            if (val > maxNextQ) maxNextQ = val;
+        });
+        if (maxNextQ === -Infinity) maxNextQ = 0;
 
-        // LERNEN (Q-Learning Update Rule)
-        // Neuer Wert = Alter Wert + Lernrate * (Reward - Alter Wert)
-        const lr = 0.5; // Lernrate
-        const oldScore = brain[petState.currentMood][petState.lastActionTaken];
-        brain[petState.currentMood][petState.lastActionTaken] += lr * (reward - oldScore); // Update simplified
+        const currentQ = getQ(currentStateKey, action);
+        const newQ = currentQ + alpha * (reward + (gamma * maxNextQ) - currentQ);
+        
+        setQ(currentStateKey, action, newQ);
 
-        saveBrain();
+        // State übernehmen
+        // WICHTIG: Auch wenn die Aktion schlecht war, übernehmen wir den State manchmal,
+        // damit die KI aus der Sackgasse rauskommt. Aber meistens wollen wir nur gute Moves.
+        // Hier simplified: Wir gehen immer.
+        state = nextState;
+
+        log(`${action} -> Error: ${nextError} (Reward: ${reward})`, reward > 0 ? '#ff0' : '#777');
         updateUI();
-        
-        log(`Interaction: ${type} | Reward: ${reward} | Brain updated!`, 'reward');
-        log(`New Score for [${petState.currentMood}][${petState.lastActionTaken}] = ${brain[petState.currentMood][petState.lastActionTaken].toFixed(2)}`);
-        
-        // Sofort neu entscheiden
-        decideAction();
+    }
+
+    // --- Controls ---
+
+    function startStop() {
+        const btn = document.getElementById('btn-toggle');
+        if (isRunning) {
+            stop();
+        } else {
+            isRunning = true;
+            btn.innerText = "⏸ Pause";
+            btn.style.background = "#f44336";
+            timer = setInterval(step, 100); // Speed: 10 Schritte pro Sekunde
+        }
+    }
+
+    function stop() {
+        isRunning = false;
+        clearInterval(timer);
+        const btn = document.getElementById('btn-toggle');
+        btn.innerText = "▶ Weiter lernen";
+        btn.style.background = "#00bcd4";
     }
 
     function resetBrain() {
-        localStorage.removeItem('petBrain');
-        location.reload();
+        qTable = {};
+        log("Gehirn (Q-Table) gelöscht.", '#f0f');
     }
 
-    // Game Loop (Zeit vergeht)
-    setInterval(() => {
-        // Bedürfnisse steigen
-        petState.hunger = Math.min(100, petState.hunger + 2); // +2 pro Tick
-        petState.boredom = Math.min(100, petState.boredom + 3);
-
-        updateUI();
-
-        // Alle 5 Ticks eine neue Entscheidung treffen, wenn nichts passiert
-        if (Math.random() < 0.3) {
-            decideAction();
-        }
-    }, 2000); // Alle 2 Sekunden
-
-    // Start
-    log("System gestartet. Warte auf State...", 'info');
-    decideAction();
+    // Start Setup
+    newEquation();
 
 </script>
 </body>
 </html>
- 
