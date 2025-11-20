@@ -3,342 +3,430 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Art Miner: Transparent Mode</title>
+    <title>Aesthetic Art Miner</title>
     <style>
         body {
-            font-family: 'Courier New', Courier, monospace; /* Monospace für Hacker-Look */
-            background-color: #000;
-            color: #0f0;
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #050505;
+            color: #ccc;
             display: flex;
             flex-direction: column;
             align-items: center;
             margin: 0;
-            padding: 10px;
+            padding: 20px;
             height: 100vh;
             overflow: hidden;
         }
 
-        h1 { margin: 5px 0; font-size: 1.2rem; color: #fff; text-transform: uppercase; letter-spacing: 2px; }
-        
-        #canvas-container {
-            border: 1px solid #333;
-            margin: 10px 0;
-            width: 300px;
-            height: 300px;
-            background: #111;
+        h1 { font-weight: 300; letter-spacing: 4px; color: #fff; font-size: 1.2rem; margin-bottom: 10px; text-transform: uppercase;}
+
+        #canvas-wrapper {
             position: relative;
-        }
-        
-        canvas { width: 100%; height: 100%; display: block; }
-
-        /* Overlay für den aktuellen Versuch (flackert) */
-        #scan-line {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 2px;
-            background: rgba(0, 255, 0, 0.5);
-            box-shadow: 0 0 10px #0f0;
-            display: none;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            width: 320px;
-            margin-bottom: 10px;
-            background: #111;
-            padding: 10px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
             border: 1px solid #222;
-            font-size: 0.8rem;
+            width: 320px; height: 320px;
         }
-        .stat-label { color: #666; }
-        .stat-val { color: #fff; font-weight: bold; text-align: right;}
-        
-        /* Highlight für den Live-Wert */
-        #current-score { color: #888; } 
-        #best-score { color: #0f0; text-shadow: 0 0 5px #0f0; }
 
-        .controls {
-            display: flex; gap: 10px; width: 320px;
+        canvas { width: 100%; height: 100%; display: block; background: #000; }
+
+        /* Eine elegante Scan-Linie */
+        #scan-line {
+            position: absolute; top: 0; left: 0; width: 100%; height: 1px;
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 0 15px white;
+            display: none; opacity: 0.5;
         }
+
+        .stats {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+            width: 320px; margin-top: 20px; font-size: 0.85rem;
+        }
+        .stat-box { background: #111; padding: 10px; border-radius: 4px; border: 1px solid #222; }
+        .label { color: #555; display: block; margin-bottom: 3px; font-size: 0.7rem; text-transform: uppercase;}
+        .val { font-family: monospace; font-size: 1.1rem; color: #fff; }
+
+        .controls { margin-top: 20px; display: flex; gap: 10px; width: 320px; }
         button {
-            background: #004400;
-            color: #0f0;
-            border: 1px solid #0f0;
-            padding: 15px;
-            font-size: 14px;
-            cursor: pointer;
-            flex-grow: 1;
-            text-transform: uppercase;
-            font-family: inherit;
+            background: #eee; color: #000; border: none; padding: 12px;
+            flex-grow: 1; cursor: pointer; font-weight: 600; letter-spacing: 1px;
+            transition: all 0.2s; border-radius: 2px;
         }
-        button:active { background: #006600; color: #fff; }
-        #download-btn { border-color: #ff9800; color: #ff9800; display: none;}
+        button:hover { background: #fff; }
+        button:active { transform: scale(0.98); }
+        
+        #btn-save { background: #222; color: #fff; border: 1px solid #444; display: none;}
+        #btn-save:hover { border-color: #fff; }
 
-        #log {
-            width: 320px;
-            height: 60px;
-            overflow: hidden;
-            font-size: 10px;
-            color: #444;
-            margin-top: 5px;
-            border-top: 1px solid #222;
-            padding-top: 5px;
+        /* Status Indikator */
+        #status {
+            margin-top: 10px; font-size: 0.75rem; color: #444; font-family: monospace;
+            height: 20px;
         }
-
     </style>
 </head>
 <body>
 
-    <h1>Neural Art Miner</h1>
-    
-    <div id="canvas-container">
-        <canvas id="artCanvas" width="500" height="500"></canvas>
+    <h1>Aesthetic Engine</h1>
+
+    <div id="canvas-wrapper">
+        <canvas id="displayCanvas" width="600" height="600"></canvas>
         <div id="scan-line"></div>
     </div>
 
-    <div class="stats-grid">
-        <span class="stat-label">Versuche:</span>
-        <span class="stat-val" id="count">0</span>
-        
-        <span class="stat-label">Live Score:</span>
-        <span class="stat-val" id="current-score">---</span>
-
-        <span class="stat-label">Highscore:</span>
-        <span class="stat-val" id="best-score">0</span>
-        
-        <span class="stat-label">Speed:</span>
-        <span class="stat-val" id="speed">0 /s</span>
+    <div class="stats">
+        <div class="stat-box">
+            <span class="label">Live Score</span>
+            <div class="val" id="score-live" style="color:#666;">---</div>
+        </div>
+        <div class="stat-box">
+            <span class="label">Best Aesthetics</span>
+            <div class="val" id="score-best" style="color:#4caf50;">0</div>
+        </div>
+        <div class="stat-box">
+            <span class="label">Iterations</span>
+            <div class="val" id="iterations">0</div>
+        </div>
+        <div class="stat-box">
+            <span class="label">Style</span>
+            <div class="val" id="current-style">---</div>
+        </div>
     </div>
+
+    <div id="status">Waiting to create...</div>
 
     <div class="controls">
-        <button onclick="toggleMining()" id="btn-main">Start System</button>
-        <button onclick="downloadArt()" id="download-btn">Save</button>
+        <button id="btn-toggle" onclick="toggleMining()">START CREATE</button>
+        <button id="btn-save" onclick="saveArt()">SAVE ART</button>
     </div>
-    
-    <div id="log">System bereit. Warte auf Input...</div>
 
 <script>
-    const canvas = document.getElementById('artCanvas');
-    const ctx = canvas.getContext('2d');
+    // Setup
+    const displayCvs = document.getElementById('displayCanvas');
+    const dCtx = displayCvs.getContext('2d');
     
-    // Worker Canvas (Hier wird gearbeitet)
-    const workCanvas = document.createElement('canvas');
-    workCanvas.width = 500;
-    workCanvas.height = 500;
-    const wCtx = workCanvas.getContext('2d');
+    // Worker Canvas (unsichtbar)
+    const workCvs = document.createElement('canvas');
+    workCvs.width = 600; workCvs.height = 600;
+    const ctx = workCvs.getContext('2d');
 
-    const PHI = 1.6180339887; 
-    const W = 500;
-    const H = 500;
+    let isRunning = false;
+    let animationFrame;
+    let bestScore = 0;
+    let totalIterations = 0;
+    let bestImageData = null;
 
-    let isMining = false;
-    let iterations = 0;
-    let bestScore = 0; // Start bei 0, nicht negativ
-    let lastTime = Date.now();
-    let frameCount = 0;
-    let animationId;
-    let bestArtData = null;
+    // Konstanten für Ästhetik
+    const WIDTH = 600;
+    const HEIGHT = 600;
+    const PHI = 1.6180339887;
 
-    // Logging Funktion
-    function log(msg) {
-        const el = document.getElementById('log');
-        el.innerHTML = `> ${msg}<br>` + el.innerHTML;
+    // --- 1. COLOR THEORY ENGINE ---
+    // Erzeugt nur Paletten, die mathematisch harmonieren. Kein Zufalls-Matsch mehr.
+    function getHarmoniousPalette() {
+        const hue = Math.floor(Math.random() * 360);
+        const scheme = Math.random();
+        let colors = [];
+        
+        // Helper für HSL String
+        const c = (h, s, l, a=1) => `hsla(${h}, ${s}%, ${l}%, ${a})`;
+
+        if (scheme < 0.33) { 
+            // Monochromatisch (Edel & Ruhig)
+            colors = [
+                c(hue, 20, 10), // Bg
+                c(hue, 60, 50, 0.1), // Layer
+                c(hue, 80, 60, 0.6), // Highlight
+                c(hue, 40, 30, 0.8)  // Detail
+            ];
+        } else if (scheme < 0.66) {
+            // Komplementär (Kontrastreich & Dynamisch)
+            const comp = (hue + 180) % 360;
+            colors = [
+                c(hue, 30, 5), // Bg Dunkel
+                c(hue, 80, 60, 0.1), // Main
+                c(comp, 80, 60, 0.2), // Contrast Layer
+                c(comp, 90, 80, 0.9)  // Pop
+            ];
+        } else {
+            // Analog (Natürlich & Harmonisch)
+            const h2 = (hue + 30) % 360;
+            const h3 = (hue - 30 + 360) % 360;
+            colors = [
+                c(hue, 10, 10), 
+                c(hue, 60, 40, 0.15),
+                c(h2, 70, 50, 0.3),
+                c(h3, 70, 60, 0.8)
+            ];
+        }
+        return colors;
     }
 
-    function getRandomPalette() {
-        const h = Math.random() * 360;
-        return [
-            [h, 50, 20], // Dunkel
-            [(h + 180) % 360, 80, 60], // Hell & Kontrast
-            [(h + 30) % 360, 60, 40] // Akzent
-        ];
-    }
-
-    // --- GENERATOR ---
-    function generate(ctx) {
-        const pal = getRandomPalette();
+    // --- 2. STYLE GENERATORS ---
+    // Verschiedene "Künstler-Persönlichkeiten"
+    
+    function drawNebula(palette) {
+        ctx.fillStyle = palette[0];
+        ctx.fillRect(0,0,WIDTH,HEIGHT);
         
-        // Background: Dunkel halten für Kontrast
-        const bg = pal[0];
-        ctx.fillStyle = `hsl(${bg[0]}, ${bg[1]}%, 5%)`;
-        ctx.fillRect(0, 0, W, H);
+        const count = 30 + Math.random() * 50;
+        ctx.globalCompositeOperation = 'screen'; // Leuchteffekt
 
-        const shapes = Math.floor(Math.random() * 20) + 5;
-        
-        // Composite Mode zufällig wählen (das macht die coolen Lichteffekte)
-        const modes = ['source-over', 'screen', 'lighter', 'overlay'];
-        ctx.globalCompositeOperation = modes[Math.floor(Math.random() * modes.length)];
-
-        for(let i=0; i<shapes; i++) {
-            ctx.beginPath();
-            const col = pal[Math.floor(Math.random() * pal.length)];
-            ctx.fillStyle = `hsla(${col[0]}, ${col[1]}%, ${col[2]}%, ${Math.random() * 0.5})`;
+        for(let i=0; i<count; i++) {
+            const x = Math.random() * WIDTH;
+            const y = Math.random() * HEIGHT;
+            const r = (Math.random() * 200) + 50;
             
-            // Versuche Goldener Schnitt (mit Streuung)
-            let x = (Math.random() > 0.5 ? W/PHI : W - W/PHI) + (Math.random()*100 - 50);
-            let y = (Math.random() > 0.5 ? H/PHI : H - H/PHI) + (Math.random()*100 - 50);
-            let s = (Math.random() * 100) + 20;
-
-            if(Math.random() > 0.7) { // 30% komplett zufällig
-                x = Math.random() * W; y = Math.random() * H;
-            }
-
-            if(Math.random() > 0.5) {
-                ctx.arc(x, y, s, 0, Math.PI*2);
-            } else {
-                ctx.rect(x - s/2, y - s/2, s, s);
-            }
-            ctx.fill();
+            const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+            grad.addColorStop(0, palette[Math.floor(Math.random() * (palette.length-1)) + 1]);
+            grad.addColorStop(1, 'transparent');
+            
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
         }
+        return "Nebula";
     }
 
-    // --- BEWERTUNG (Gefixt: Keine negativen Zahlen) ---
-    function rate() {
-        const imgData = wCtx.getImageData(0, 0, W, H);
-        const data = imgData.data;
+    function drawGeometric(palette) {
+        ctx.fillStyle = palette[0];
+        ctx.fillRect(0,0,WIDTH,HEIGHT);
+        ctx.globalCompositeOperation = 'source-over';
+
+        const cols = 5 + Math.floor(Math.random() * 5);
+        const step = WIDTH / cols;
         
-        // Sampling (Performance)
-        const step = 20; 
-        let totalLum = 0;
-        let min = 255, max = 0;
-        let goldenHits = 0;
-
-        // Prüfpunkte für Goldenen Schnitt
-        const gPoints = [
-            Math.floor((H/PHI)*W + W/PHI)*4,
-            Math.floor((H/PHI)*W + (W - W/PHI))*4
-        ];
-
-        for(let y=0; y<H; y+=step) {
-            for(let x=0; x<W; x+=step) {
-                const i = (y*W + x)*4;
-                const l = (data[i] + data[i+1] + data[i+2]) / 3;
-                totalLum += l;
-                if(l < min) min = l;
-                if(l > max) max = l;
+        for(let x=0; x<WIDTH; x+=step) {
+            for(let y=0; y<HEIGHT; y+=step) {
+                if(Math.random() > 0.3) continue; // Leerraum lassen!
+                
+                ctx.fillStyle = palette[Math.floor(Math.random() * (palette.length-1)) + 1];
+                const size = step * (Math.random() > 0.8 ? 0.9 : 0.5);
+                const offset = (step - size)/2;
+                
+                if(Math.random() > 0.5) {
+                    ctx.fillRect(x+offset, y+offset, size, size);
+                } else {
+                    ctx.beginPath(); 
+                    ctx.arc(x+step/2, y+step/2, size/2, 0, Math.PI*2); 
+                    ctx.fill();
+                }
             }
         }
-        
-        // Check Golden Points (einfacher Test)
-        gPoints.forEach(idx => {
-            if(data[idx] > 100) goldenHits++;
-        });
+        return "Bauhaus";
+    }
 
-        const avg = totalLum / ((W/step)*(H/step));
+    function drawLines(palette) {
+        ctx.fillStyle = palette[0];
+        ctx.fillRect(0,0,WIDTH,HEIGHT);
+        ctx.globalCompositeOperation = 'lighter';
+
+        const num = 50;
+        ctx.lineWidth = Math.random() * 2 + 0.5;
         
+        // Flow Field Ansatz (Simpel)
+        let x = Math.random() * WIDTH;
+        let y = Math.random() * HEIGHT;
+        
+        for(let i=0; i<num; i++) {
+            ctx.strokeStyle = palette[Math.floor(Math.random() * (palette.length-1)) + 1];
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            // Brownsche Bewegung mit Tendenz zur Mitte
+            x += (Math.random() - 0.5) * 200 + (WIDTH/2 - x)*0.05;
+            y += (Math.random() - 0.5) * 200 + (HEIGHT/2 - y)*0.05;
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            
+            // Ab und zu ein Kreis am Gelenk
+            if(Math.random() > 0.8) {
+                ctx.fillStyle = ctx.strokeStyle;
+                ctx.beginPath(); ctx.arc(x, y, Math.random()*5, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        return "Neural Net";
+    }
+
+    // --- 3. THE CRITIC (Improved) ---
+    function rateArtwork() {
+        const imgData = ctx.getImageData(0, 0, WIDTH, HEIGHT);
+        const data = imgData.data;
         let score = 0;
+        
+        // Sampling Step (Performance)
+        const step = 4; 
+        
+        let totalLum = 0;
+        let edgeScore = 0;
+        let saturationSum = 0;
 
-        // 1. Kontrast Bonus (0 bis 100 Punkte)
-        score += (max - min) / 2.55; 
+        // 1. EDGE DETECTION (Kanten finden)
+        // Wir vergleichen Pixel mit dem rechten Nachbarn.
+        // Zu wenig Kanten = Langweilig (Leere Fläche).
+        // Zu viele Kanten = Chaos (Rauschen).
+        
+        for(let y=0; y<HEIGHT; y+=step) {
+            for(let x=0; x<WIDTH-step; x+=step) {
+                const i = (y * WIDTH + x) * 4;
+                const iNext = (y * WIDTH + (x+step)) * 4;
+                
+                const r = data[i]; const g = data[i+1]; const b = data[i+2];
+                const r2 = data[iNext]; const g2 = data[iNext+1]; const b2 = data[iNext+2];
+                
+                const lum = (r+g+b)/3;
+                const lum2 = (r2+g2+b2)/3;
+                
+                totalLum += lum;
 
-        // 2. Helligkeit Strafe (Wir wollen ca. Helligkeit 60-120)
-        // Math.abs verhindert negativ nicht, aber zieht ab.
-        // Wir nutzen Math.max(0, ...), um den Abzug zu begrenzen.
-        const distFromIdeal = Math.abs(90 - avg);
-        const brightnessScore = Math.max(0, 100 - distFromIdeal); 
-        score += brightnessScore;
+                // Kantenstärke
+                const diff = Math.abs(lum - lum2);
+                edgeScore += diff;
 
-        // 3. Goldener Schnitt Bonus
-        score += goldenHits * 50;
+                // Sättigungs-Check (Grau vermeiden)
+                const max = Math.max(r,g,b);
+                const min = Math.min(r,g,b);
+                if(max > 0) saturationSum += (max-min)/max;
+            }
+        }
 
-        // 4. Zufall
-        score += Math.random() * 20;
+        const pixelCount = (WIDTH/step) * (HEIGHT/step);
+        const avgLum = totalLum / pixelCount;
+        const avgEdge = edgeScore / pixelCount; // Durchschnittlicher Kontrast zwischen Pixeln
+        const avgSat = saturationSum / pixelCount;
+
+        // --- SCORING LOGIC ---
+
+        // A. Komplexität (Sweet Spot bei Edge Density)
+        // Wir wollen ca avgEdge von 10 bis 30.
+        // < 5 ist fast leer. > 50 ist Rauschen.
+        const idealEdge = 20;
+        const complexityScore = 100 - Math.abs(idealEdge - avgEdge) * 4; 
+        score += Math.max(0, complexityScore);
+
+        // B. Farb-Tiefe (Sättigung)
+        // Wir belohnen Farben, bestrafen reines Grau.
+        score += avgSat * 50; 
+
+        // C. Helligkeit Balance
+        // Nicht zu dunkel (<20) und nicht zu hell (>200)
+        if(avgLum > 20 && avgLum < 200) score += 30;
+        
+        // D. Goldener Schnitt (Bonus)
+        // Wir prüfen, ob an den Schnittpunkten "etwas passiert" (Kanten sind)
+        // statt nur Helligkeit.
+        // Wir simulieren das vereinfacht durch Prüfung der Mitte (Fokus).
+        score += 10; // Basisbonus fürs Existieren
+
+        // E. Matsch-Filter
+        // Wenn Sättigung zu niedrig, massiver Abzug.
+        if(avgSat < 0.1) score = 0; 
+        
+        // F. Leere-Filter
+        // Wenn kaum Kanten da sind, ist das Bild leer.
+        if(avgEdge < 2) score = 0;
 
         return Math.floor(score);
     }
 
-    function mine() {
-        if(!isMining) return;
 
-        const BATCH = 5; 
-        let currentBatchBest = 0;
+    // --- MAIN LOOP ---
+    function createCycle() {
+        if(!isRunning) return;
 
-        for(let i=0; i<BATCH; i++) {
-            iterations++;
-            generate(wCtx); // Auf Arbeits-Canvas malen
-            const score = rate();
-
-            currentBatchBest = score; // Für Live Anzeige
-
-            if(score > bestScore) {
-                bestScore = score;
-                // Wir speichern das Bild
-                bestArtData = wCtx.getImageData(0, 0, W, H);
-                // Und zeigen es an
-                ctx.putImageData(bestArtData, 0, 0);
-                
-                document.getElementById('best-score').innerText = bestScore;
-                document.getElementById('download-btn').style.display = 'block';
-                log(`Neuer Rekord: ${score}`);
-            }
-        }
-
-        // Live Wert anzeigen (zeigt, dass gearbeitet wird)
-        document.getElementById('current-score').innerText = currentBatchBest;
-        document.getElementById('count').innerText = iterations.toLocaleString();
-
-        frameCount += BATCH;
+        // Wir machen einen Versuch
+        totalIterations++;
         
-        // Speed Check
-        if(Date.now() - lastTime > 1000) {
-            document.getElementById('speed').innerText = frameCount + " /s";
-            frameCount = 0;
-            lastTime = Date.now();
+        // 1. Palette wählen
+        const palette = getHarmoniousPalette();
+        
+        // 2. Stil wählen (Zufällig)
+        const rand = Math.random();
+        let styleName = "";
+        if(rand < 0.33) styleName = drawNebula(palette);
+        else if(rand < 0.66) styleName = drawGeometric(palette);
+        else styleName = drawLines(palette);
+
+        // 3. Bewerten
+        const currentScore = rateArtwork();
+
+        // UI Update (Live)
+        document.getElementById('score-live').innerText = currentScore;
+        document.getElementById('iterations').innerText = totalIterations;
+        document.getElementById('current-style').innerText = styleName;
+
+        // Wenn besser als bisher...
+        if(currentScore > bestScore) {
+            bestScore = currentScore;
+            
+            // Speichern für Anzeige
+            bestImageData = ctx.getImageData(0,0,WIDTH,HEIGHT);
+            
+            // Auf Display kopieren
+            dCtx.putImageData(bestImageData, 0, 0);
+            
+            // UI
+            document.getElementById('score-best').innerText = bestScore;
+            document.getElementById('btn-save').style.display = 'inline-block';
+            document.getElementById('status').innerText = `New Best: ${styleName} (${currentScore})`;
+            document.getElementById('status').style.color = '#4caf50';
         }
 
-        animationId = requestAnimationFrame(mine);
+        // Loop
+        // Wir geben dem Browser kurz Luft (setTimeout 0), damit die UI rendert
+        // Bei requestAnimationFrame wäre es smoother, aber bei rechenintensiven Tasks
+        // kann setTimeout helfen, Events durchzulassen.
+        animationFrame = requestAnimationFrame(createCycle);
     }
 
     function toggleMining() {
-        const btn = document.getElementById('btn-main');
-        const line = document.getElementById('scan-line');
+        const btn = document.getElementById('btn-toggle');
+        const scan = document.getElementById('scan-line');
         
-        if(isMining) {
-            isMining = false;
-            cancelAnimationFrame(animationId);
-            btn.innerText = "Start System";
-            btn.style.background = "#004400";
-            line.style.display = 'none';
-            log("System pausiert.");
+        if(isRunning) {
+            isRunning = false;
+            cancelAnimationFrame(animationFrame);
+            btn.innerText = "RESUME";
+            btn.style.background = "#eee";
+            scan.style.display = 'none';
+            document.getElementById('status').innerText = "Paused.";
         } else {
-            isMining = true;
-            btn.innerText = "STOP";
-            btn.style.background = "#aa0000";
-            line.style.display = 'block';
-            // Animation für Scanline
-            let pos = 0;
-            function moveLine() {
-                if(!isMining) return;
-                pos = (pos + 2) % 300;
-                line.style.top = pos + 'px';
-                requestAnimationFrame(moveLine);
-            }
-            moveLine();
+            isRunning = true;
+            btn.innerText = "PAUSE";
+            btn.style.background = "#ffdd57"; // Gelb für Active
+            scan.style.display = 'block';
             
-            log("Mining gestartet...");
-            mine();
+            // Scanline Animation
+            let pos = 0;
+            function moveScan() {
+                if(!isRunning) return;
+                pos = (pos + 4) % 320;
+                scan.style.top = pos + 'px';
+                requestAnimationFrame(moveScan);
+            }
+            moveScan();
+            
+            createCycle();
         }
     }
 
-    function downloadArt() {
-        if(!bestArtData) return;
-        const dCanvas = document.createElement('canvas');
-        dCanvas.width = W; dCanvas.height = H;
-        dCanvas.getContext('2d').putImageData(bestArtData, 0, 0);
+    function saveArt() {
+        if(!bestImageData) return;
         const link = document.createElement('a');
-        link.download = `art_score_${bestScore}.png`;
-        link.href = dCanvas.toDataURL();
+        // Wir rendern das beste Bild kurz in ein temporäres Canvas für den Download
+        const tmp = document.createElement('canvas');
+        tmp.width = WIDTH; tmp.height = HEIGHT;
+        tmp.getContext('2d').putImageData(bestImageData, 0, 0);
+        
+        link.download = `aesthetic_art_${bestScore}.png`;
+        link.href = tmp.toDataURL();
         link.click();
     }
 
     // Init
-    ctx.fillStyle = '#111';
-    ctx.fillRect(0,0,W,H);
-    ctx.fillStyle = '#222';
-    ctx.font = "20px Courier New";
-    ctx.textAlign = "center";
-    ctx.fillText("SYSTEM READY", W/2, H/2);
+    dCtx.fillStyle = "#111";
+    dCtx.fillRect(0,0,600,600);
+    dCtx.font = "20px sans-serif";
+    dCtx.fillStyle = "#333";
+    dCtx.textAlign = "center";
+    dCtx.fillText("PRESS START", 300, 300);
 
 </script>
 </body>
