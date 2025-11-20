@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2048 Solver & Debugger</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #faf8ef;
+            color: #776e65;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { margin-bottom: 10px; }
+
+        /* Das Grid Styling */
+        .grid-container {
+            background-color: #bbada0;
+            padding: 15px;
+            border-radius: 6px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .cell input {
+            width: 100%;
+            height: 60px;
+            border: none;
+            border-radius: 3px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: rgba(238, 228, 218, 0.35);
+            color: #776e65;
+        }
+
+        /* Farben basierend auf Werten (optional simple visualisierung) */
+        .cell input:not([value=""]), .cell input:not([value="0"]) {
+            background-color: #eee4da;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background-color: #8f7a66;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button.reset { background-color: #999; }
+
+        #result {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #e95624;
+            min-height: 30px;
+        }
+
+        /* On-Screen Debugger Styling */
+        #debug-console {
+            margin-top: 30px;
+            width: 100%;
+            max-width: 400px;
+            height: 200px;
+            background-color: #333;
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            padding: 10px;
+            overflow-y: scroll;
+            border-radius: 5px;
+            border: 2px solid #555;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>2048 Nächster Schritt</h1>
+    <p>Gib die aktuellen Zahlen ein:</p>
+
+    <div class="grid-container" id="grid">
+        </div>
+
+    <div class="controls">
+        <button onclick="calculateBestMove()">Bester Zug?</button>
+        <button class="reset" onclick="resetGrid()">Reset</button>
+    </div>
+
+    <div id="result"></div>
+
+    <h3>System Log</h3>
+    <div id="debug-console">Ready...<br></div>
+
+    <script>
+        // --- 1. Debugger Setup ---
+        function log(msg) {
+            const consoleEl = document.getElementById('debug-console');
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            consoleEl.innerHTML += `[${time}] ${msg}<br>`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+            console.log(msg); // Auch in die echte Konsole, falls verfügbar
+        }
+
+        window.onerror = function(msg, url, line) {
+            log(`<span style="color:red">ERROR: ${msg} (Line ${line})</span>`);
+            return false;
+        };
+
+        // --- 2. UI Setup ---
+        const gridEl = document.getElementById('grid');
+        const inputs = [];
+
+        function initGrid() {
+            gridEl.innerHTML = '';
+            inputs.length = 0;
+            for (let i = 0; i < 16; i++) {
+                const div = document.createElement('div');
+                div.className = 'cell';
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.id = 'cell-' + i;
+                div.appendChild(input);
+                gridEl.appendChild(div);
+                inputs.push(input);
+            }
+            log("Grid initialisiert.");
+        }
+
+        function getGridState() {
+            // Konvertiert Inputs in ein 4x4 Array [Reihe][Spalte]
+            let grid = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+            for (let i = 0; i < 16; i++) {
+                let val = parseInt(inputs[i].value);
+                if (isNaN(val)) val = 0;
+                const r = Math.floor(i / 4);
+                const c = i % 4;
+                grid[r][c] = val;
+            }
+            return grid;
+        }
+
+        function resetGrid() {
+            inputs.forEach(inp => inp.value = '');
+            document.getElementById('result').innerText = '';
+            log("Grid zurückgesetzt.");
+        }
+
+        initGrid();
+
+        // --- 3. 2048 Logik & Algorithmus ---
+        
+        // Richtungen
+        const UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3;
+        const DIR_NAMES = ['OBEN', 'RECHTS', 'UNTEN', 'LINKS'];
+
+        // Hilfsfunktion: Kopiert das Grid
+        function cloneGrid(grid) {
+            return grid.map(row => [...row]);
+        }
+
+        // Kernlogik: Bewegt eine Reihe nach links und merged
+        function moveRowLeft(row) {
+            // 1. Nullen entfernen
+            let newRow = row.filter(val => val !== 0);
+            let score = 0;
+
+            // 2. Mergen
+            for (let i = 0; i < newRow.length - 1; i++) {
+                if (newRow[i] === newRow[i+1]) {
+                    newRow[i] *= 2;
+                    score += newRow[i]; // Punkte fürs Mergen
+                    newRow.splice(i+1, 1); // Entferne das gemergte Element
+                }
+            }
+
+            // 3. Mit Nullen auffüllen
+            while (newRow.length < 4) {
+                newRow.push(0);
+            }
+            return { row: newRow, score: score, changed: false }; // Changed prüfen wir global
+        }
+
+        // Grid in eine Richtung bewegen
+        function moveGrid(grid, direction) {
+            let newGrid = cloneGrid(grid);
+            let score = 0;
+            let moved = false;
+
+            // Wir rotieren das Grid so, dass wir immer "nach Links" schieben können,
+            // und rotieren dann zurück. Das spart Code.
+            
+            // Rotationen um 'Left' Logik zu nutzen:
+            // UP: 3 Rotationen, RIGHT: 2, DOWN: 1, LEFT: 0
+            let rotations = (4 - direction + 3) % 4; 
+            
+            // Rotieren
+            for(let r=0; r<rotations; r++) newGrid = rotateLeft(newGrid);
+
+            // Verschieben
+            for (let i = 0; i < 4; i++) {
+                let result = moveRowLeft(newGrid[i]);
+                if (result.row.toString() !== newGrid[i].toString()) moved = true;
+                newGrid[i] = result.row;
+                score += result.score;
+            }
+
+            // Zurück rotieren
+            let backRotations = (4 - rotations) % 4;
+            for(let r=0; r<backRotations; r++) newGrid = rotateLeft(newGrid);
+
+            return { grid: newGrid, score: score, moved: moved };
+        }
+
+        function rotateLeft(grid) {
+            const rows = grid.length;
+            const cols = grid[0].length;
+            let res = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    res[cols - 1 - c][r] = grid[r][c];
+                }
+            }
+            return res;
+        }
+
+        // --- 4. AI Heuristik (Bewertung des Zustands) ---
+        function evaluateGrid(grid) {
+            // 1. Leere Felder (sehr wichtig)
+            let emptyCells = 0;
+            let maxTile = 0;
+            
+            // 2. Monotonie & Smoothness (Zahlen sollten sortiert und nahe beieinander liegen)
+            let monotonicity = 0;
+            let smoothness = 0;
+
+            for (let r = 0; r < 4; r++) {
+                for (let c = 0; c < 4; c++) {
+                    if (grid[r][c] === 0) {
+                        emptyCells++;
+                    } else {
+                        if (grid[r][c] > maxTile) maxTile = grid[r][c];
+                        
+                        // Smoothness (Differenz zu Nachbarn)
+                        if (c < 3 && grid[r][c+1] > 0) smoothness -= Math.abs(grid[r][c] - grid[r][c+1]);
+                        if (r < 3 && grid[r+1][c] > 0) smoothness -= Math.abs(grid[r][c] - grid[r+1][c]);
+                    }
+                }
+            }
+
+            // Gewichtungen (Experimentell)
+            // Leere Felder sind kritisch fürs Überleben
+            // Smoothness hilft beim Mergen
+            return (emptyCells * 100) + smoothness + (maxTile * 2);
+        }
+
+        // Expectimax Algorithmus (Vereinfacht: Depth 2-3)
+        // Da wir im Browser JS laufen, halten wir die Tiefe gering
+        function expectimax(grid, depth, isPlayerTurn) {
+            if (depth === 0) return { score: evaluateGrid(grid) };
+
+            if (isPlayerTurn) {
+                let bestScore = -Infinity;
+                let bestMove = -1;
+
+                for (let dir = 0; dir < 4; dir++) {
+                    let res = moveGrid(grid, dir);
+                    if (!res.moved) continue;
+
+                    // Rekursion: Jetzt ist der Computer dran (Zufalls-Tile)
+                    let val = expectimax(res.grid, depth - 1, false).score;
+                    
+                    if (val > bestScore) {
+                        bestScore = val;
+                        bestMove = dir;
+                    }
+                }
+                return { score: bestScore, move: bestMove };
+            } else {
+                // Computer Turn (Simuliert das Erscheinen von 2ern oder 4ern)
+                // Um Rechenzeit zu sparen, prüfen wir nur leere Felder, aber nicht alle Möglichkeiten
+                let emptyCoords = [];
+                for(let r=0; r<4; r++)
+                    for(let c=0; c<4; c++)
+                        if(grid[r][c] === 0) emptyCoords.push({r,c});
+                
+                if (emptyCoords.length === 0) return { score: evaluateGrid(grid) };
+
+                let avgScore = 0;
+                // Wir testen maximal 3 zufällige leere Felder um Performance zu sparen
+                let checks = Math.min(emptyCoords.length, 3); 
+                
+                for(let i=0; i<checks; i++) {
+                    // Wir nehmen an, es kommt meistens eine 2 (90% Wahrscheinlichkeit)
+                    // Vereinfachung: Wir rechnen nur mit der 2
+                    let coord = emptyCoords[i]; // Vereinfacht: Nimm die ersten paar
+                    
+                    let newGrid = cloneGrid(grid);
+                    newGrid[coord.r][coord.c] = 2;
+                    
+                    let res = expectimax(newGrid, depth - 1, true);
+                    avgScore += res.score;
+                }
+                
+                return { score: avgScore / checks };
+            }
+        }
+
+        // --- Main Function ---
+        function calculateBestMove() {
+            log("Berechne besten Zug...");
+            const grid = getGridState();
+            
+            // Tiefe 3 ist ein guter Kompromiss zwischen Intelligenz und Zeit im Browser
+            // Erhöhe auf 4 wenn dein Handy schnell ist, senke auf 2 wenn es hängt.
+            const depth = 3; 
+            
+            // Kurzes Timeout, damit das UI rendern kann bevor JS blockiert
+            setTimeout(() => {
+                const start = performance.now();
+                const result = expectimax(grid, depth, true);
+                const end = performance.now();
+
+                if (result.move !== -1 && result.move !== undefined) {
+                    const moveName = DIR_NAMES[result.move];
+                    document.getElementById('result').innerText = "👉 " + moveName;
+                    log(`Berechnet in ${(end-start).toFixed(0)}ms. Score: ${result.score.toFixed(0)}`);
+                } else {
+                    document.getElementById('result').innerText = "Kein Zug möglich / Game Over";
+                    log("Keine validen Züge gefunden.");
+                }
+            }, 50);
+        }
+
+    </script>
+</body>
+</html>
+ 
